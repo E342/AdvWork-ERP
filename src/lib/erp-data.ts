@@ -93,6 +93,21 @@ export type Factura = {
   estado: EstadoFactura;
   selloElectronico?: string;
   mensajeHacienda?: string;
+  // --- Resultado del último envío a la API (simulada) de Hacienda -------------
+  codigoGeneracion?: string;
+  numeroControl?: string;
+  /** Código del catálogo oficial de mensajes (001 = recibido, 002 = con observaciones...). */
+  codigoMsg?: string;
+  descripcionMsg?: string;
+  /** Fecha-hora de procesamiento informada por Hacienda (dd/MM/yyyy HH:mm:ss). */
+  fhProcesamiento?: string;
+  observaciones?: string[];
+  transmisionId?: string;
+  envios?: number;
+  consultas?: number;
+  recuperadoPorConsulta?: boolean;
+  /** Total a pagar según el DTE (puede diferir centavos del total del prototipo). */
+  totalDte?: number;
 };
 
 export type Devolucion = {
@@ -170,6 +185,8 @@ export const clientesSeed: Cliente[] = [
   { id: 11003, nombre: "Deportes El Pedal", documento: "0210-030716-101-9", direccion: "Av. Independencia, Santa Ana", telefono: "24409911", correo: "ventas@elpedal.sv", fechaRegistro: "2023-11-25" },
   { id: 11004, nombre: "Carlos Alberto Menjívar", documento: "03998721-4", direccion: "Res. Altavista, Ilopango", telefono: "70129933", correo: "cmenjivar@correo.com", fechaRegistro: "2025-01-18" },
   { id: 11005, nombre: "Club Ciclista Cuscatlán", documento: "0511-140312-103-1", direccion: "San Miguel Centro", telefono: "26619000", correo: "admin@cuscatlanbike.sv", fechaRegistro: "2024-09-30" },
+  // Cliente de PRUEBA: su documento es inválido a propósito para poder demostrar un rechazo (HU-08).
+  { id: 11006, nombre: "Cliente de prueba (documento inválido)", documento: "1234", direccion: "Dato ficticio para demostrar un rechazo", telefono: "70000000", correo: "prueba.rechazo@advwork.example", fechaRegistro: "2026-11-05" },
 ];
 
 export const usuariosSeed: Usuario[] = [

@@ -30,3 +30,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Datos generados por la API simulada de Hacienda
+.env
+.env.*
+!.env.example
+data/

@@ -20,6 +20,14 @@ import { Route as VentasClientesRouteImport } from './routes/ventas.clientes'
 import { Route as VentasCotizacionesRouteImport } from './routes/ventas.cotizaciones'
 import { Route as VentasDevolucionesRouteImport } from './routes/ventas.devoluciones'
 import { Route as VentasPedidosRouteImport } from './routes/ventas.pedidos'
+import { Route as ApiHaciendaSimAuthRouteImport } from './routes/api.hacienda-sim.auth'
+import { Route as ApiErpDteConsultarRouteImport } from './routes/api.erp.dte.consultar'
+import { Route as ApiErpDteTransmitirRouteImport } from './routes/api.erp.dte.transmitir'
+import { Route as ApiHaciendaSimControlEscenarioRouteImport } from './routes/api.hacienda-sim.control.escenario'
+import { Route as ApiHaciendaSimFesvRecepciondteRouteImport } from './routes/api.hacienda-sim.fesv.recepciondte'
+import { Route as ApiErpDteTransmisionesIndexRouteImport } from './routes/api.erp.dte.transmisiones.index'
+import { Route as ApiErpDteTransmisionesIdRouteImport } from './routes/api.erp.dte.transmisiones.$id'
+import { Route as ApiHaciendaSimFesvRecepcionConsultadteRouteImport } from './routes/api.hacienda-sim.fesv.recepcion.consultadte'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -76,6 +84,51 @@ const VentasPedidosRoute = VentasPedidosRouteImport.update({
   path: '/ventas/pedidos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHaciendaSimAuthRoute = ApiHaciendaSimAuthRouteImport.update({
+  id: '/api/hacienda-sim/auth',
+  path: '/api/hacienda-sim/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiErpDteConsultarRoute = ApiErpDteConsultarRouteImport.update({
+  id: '/api/erp/dte/consultar',
+  path: '/api/erp/dte/consultar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiErpDteTransmitirRoute = ApiErpDteTransmitirRouteImport.update({
+  id: '/api/erp/dte/transmitir',
+  path: '/api/erp/dte/transmitir',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHaciendaSimControlEscenarioRoute =
+  ApiHaciendaSimControlEscenarioRouteImport.update({
+    id: '/api/hacienda-sim/control/escenario',
+    path: '/api/hacienda-sim/control/escenario',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiHaciendaSimFesvRecepciondteRoute =
+  ApiHaciendaSimFesvRecepciondteRouteImport.update({
+    id: '/api/hacienda-sim/fesv/recepciondte',
+    path: '/api/hacienda-sim/fesv/recepciondte',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiErpDteTransmisionesIndexRoute =
+  ApiErpDteTransmisionesIndexRouteImport.update({
+    id: '/api/erp/dte/transmisiones/',
+    path: '/api/erp/dte/transmisiones/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiErpDteTransmisionesIdRoute =
+  ApiErpDteTransmisionesIdRouteImport.update({
+    id: '/api/erp/dte/transmisiones/$id',
+    path: '/api/erp/dte/transmisiones/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiHaciendaSimFesvRecepcionConsultadteRoute =
+  ApiHaciendaSimFesvRecepcionConsultadteRouteImport.update({
+    id: '/api/hacienda-sim/fesv/recepcion/consultadte',
+    path: '/api/hacienda-sim/fesv/recepcion/consultadte',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +142,14 @@ export interface FileRoutesByFullPath {
   '/ventas/devoluciones': typeof VentasDevolucionesRoute
   '/ventas/pedidos': typeof VentasPedidosRoute
   '/facturacion/': typeof FacturacionIndexRoute
+  '/api/hacienda-sim/auth': typeof ApiHaciendaSimAuthRoute
+  '/api/erp/dte/consultar': typeof ApiErpDteConsultarRoute
+  '/api/erp/dte/transmitir': typeof ApiErpDteTransmitirRoute
+  '/api/hacienda-sim/control/escenario': typeof ApiHaciendaSimControlEscenarioRoute
+  '/api/hacienda-sim/fesv/recepciondte': typeof ApiHaciendaSimFesvRecepciondteRoute
+  '/api/erp/dte/transmisiones/$id': typeof ApiErpDteTransmisionesIdRoute
+  '/api/hacienda-sim/fesv/recepcion/consultadte': typeof ApiHaciendaSimFesvRecepcionConsultadteRoute
+  '/api/erp/dte/transmisiones/': typeof ApiErpDteTransmisionesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +163,14 @@ export interface FileRoutesByTo {
   '/ventas/devoluciones': typeof VentasDevolucionesRoute
   '/ventas/pedidos': typeof VentasPedidosRoute
   '/facturacion': typeof FacturacionIndexRoute
+  '/api/hacienda-sim/auth': typeof ApiHaciendaSimAuthRoute
+  '/api/erp/dte/consultar': typeof ApiErpDteConsultarRoute
+  '/api/erp/dte/transmitir': typeof ApiErpDteTransmitirRoute
+  '/api/hacienda-sim/control/escenario': typeof ApiHaciendaSimControlEscenarioRoute
+  '/api/hacienda-sim/fesv/recepciondte': typeof ApiHaciendaSimFesvRecepciondteRoute
+  '/api/erp/dte/transmisiones/$id': typeof ApiErpDteTransmisionesIdRoute
+  '/api/hacienda-sim/fesv/recepcion/consultadte': typeof ApiHaciendaSimFesvRecepcionConsultadteRoute
+  '/api/erp/dte/transmisiones': typeof ApiErpDteTransmisionesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +185,14 @@ export interface FileRoutesById {
   '/ventas/devoluciones': typeof VentasDevolucionesRoute
   '/ventas/pedidos': typeof VentasPedidosRoute
   '/facturacion/': typeof FacturacionIndexRoute
+  '/api/hacienda-sim/auth': typeof ApiHaciendaSimAuthRoute
+  '/api/erp/dte/consultar': typeof ApiErpDteConsultarRoute
+  '/api/erp/dte/transmitir': typeof ApiErpDteTransmitirRoute
+  '/api/hacienda-sim/control/escenario': typeof ApiHaciendaSimControlEscenarioRoute
+  '/api/hacienda-sim/fesv/recepciondte': typeof ApiHaciendaSimFesvRecepciondteRoute
+  '/api/erp/dte/transmisiones/$id': typeof ApiErpDteTransmisionesIdRoute
+  '/api/hacienda-sim/fesv/recepcion/consultadte': typeof ApiHaciendaSimFesvRecepcionConsultadteRoute
+  '/api/erp/dte/transmisiones/': typeof ApiErpDteTransmisionesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +208,14 @@ export interface FileRouteTypes {
     | '/ventas/devoluciones'
     | '/ventas/pedidos'
     | '/facturacion/'
+    | '/api/hacienda-sim/auth'
+    | '/api/erp/dte/consultar'
+    | '/api/erp/dte/transmitir'
+    | '/api/hacienda-sim/control/escenario'
+    | '/api/hacienda-sim/fesv/recepciondte'
+    | '/api/erp/dte/transmisiones/$id'
+    | '/api/hacienda-sim/fesv/recepcion/consultadte'
+    | '/api/erp/dte/transmisiones/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +229,14 @@ export interface FileRouteTypes {
     | '/ventas/devoluciones'
     | '/ventas/pedidos'
     | '/facturacion'
+    | '/api/hacienda-sim/auth'
+    | '/api/erp/dte/consultar'
+    | '/api/erp/dte/transmitir'
+    | '/api/hacienda-sim/control/escenario'
+    | '/api/hacienda-sim/fesv/recepciondte'
+    | '/api/erp/dte/transmisiones/$id'
+    | '/api/hacienda-sim/fesv/recepcion/consultadte'
+    | '/api/erp/dte/transmisiones'
   id:
     | '__root__'
     | '/'
@@ -157,6 +250,14 @@ export interface FileRouteTypes {
     | '/ventas/devoluciones'
     | '/ventas/pedidos'
     | '/facturacion/'
+    | '/api/hacienda-sim/auth'
+    | '/api/erp/dte/consultar'
+    | '/api/erp/dte/transmitir'
+    | '/api/hacienda-sim/control/escenario'
+    | '/api/hacienda-sim/fesv/recepciondte'
+    | '/api/erp/dte/transmisiones/$id'
+    | '/api/hacienda-sim/fesv/recepcion/consultadte'
+    | '/api/erp/dte/transmisiones/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +272,14 @@ export interface RootRouteChildren {
   VentasDevolucionesRoute: typeof VentasDevolucionesRoute
   VentasPedidosRoute: typeof VentasPedidosRoute
   FacturacionIndexRoute: typeof FacturacionIndexRoute
+  ApiHaciendaSimAuthRoute: typeof ApiHaciendaSimAuthRoute
+  ApiErpDteConsultarRoute: typeof ApiErpDteConsultarRoute
+  ApiErpDteTransmitirRoute: typeof ApiErpDteTransmitirRoute
+  ApiHaciendaSimControlEscenarioRoute: typeof ApiHaciendaSimControlEscenarioRoute
+  ApiHaciendaSimFesvRecepciondteRoute: typeof ApiHaciendaSimFesvRecepciondteRoute
+  ApiErpDteTransmisionesIdRoute: typeof ApiErpDteTransmisionesIdRoute
+  ApiHaciendaSimFesvRecepcionConsultadteRoute: typeof ApiHaciendaSimFesvRecepcionConsultadteRoute
+  ApiErpDteTransmisionesIndexRoute: typeof ApiErpDteTransmisionesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -252,6 +361,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VentasPedidosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hacienda-sim/auth': {
+      id: '/api/hacienda-sim/auth'
+      path: '/api/hacienda-sim/auth'
+      fullPath: '/api/hacienda-sim/auth'
+      preLoaderRoute: typeof ApiHaciendaSimAuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/erp/dte/consultar': {
+      id: '/api/erp/dte/consultar'
+      path: '/api/erp/dte/consultar'
+      fullPath: '/api/erp/dte/consultar'
+      preLoaderRoute: typeof ApiErpDteConsultarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/erp/dte/transmitir': {
+      id: '/api/erp/dte/transmitir'
+      path: '/api/erp/dte/transmitir'
+      fullPath: '/api/erp/dte/transmitir'
+      preLoaderRoute: typeof ApiErpDteTransmitirRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hacienda-sim/control/escenario': {
+      id: '/api/hacienda-sim/control/escenario'
+      path: '/api/hacienda-sim/control/escenario'
+      fullPath: '/api/hacienda-sim/control/escenario'
+      preLoaderRoute: typeof ApiHaciendaSimControlEscenarioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hacienda-sim/fesv/recepciondte': {
+      id: '/api/hacienda-sim/fesv/recepciondte'
+      path: '/api/hacienda-sim/fesv/recepciondte'
+      fullPath: '/api/hacienda-sim/fesv/recepciondte'
+      preLoaderRoute: typeof ApiHaciendaSimFesvRecepciondteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/erp/dte/transmisiones/': {
+      id: '/api/erp/dte/transmisiones/'
+      path: '/api/erp/dte/transmisiones'
+      fullPath: '/api/erp/dte/transmisiones/'
+      preLoaderRoute: typeof ApiErpDteTransmisionesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/erp/dte/transmisiones/$id': {
+      id: '/api/erp/dte/transmisiones/$id'
+      path: '/api/erp/dte/transmisiones/$id'
+      fullPath: '/api/erp/dte/transmisiones/$id'
+      preLoaderRoute: typeof ApiErpDteTransmisionesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hacienda-sim/fesv/recepcion/consultadte': {
+      id: '/api/hacienda-sim/fesv/recepcion/consultadte'
+      path: '/api/hacienda-sim/fesv/recepcion/consultadte'
+      fullPath: '/api/hacienda-sim/fesv/recepcion/consultadte'
+      preLoaderRoute: typeof ApiHaciendaSimFesvRecepcionConsultadteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -267,6 +432,15 @@ const rootRouteChildren: RootRouteChildren = {
   VentasDevolucionesRoute: VentasDevolucionesRoute,
   VentasPedidosRoute: VentasPedidosRoute,
   FacturacionIndexRoute: FacturacionIndexRoute,
+  ApiHaciendaSimAuthRoute: ApiHaciendaSimAuthRoute,
+  ApiErpDteConsultarRoute: ApiErpDteConsultarRoute,
+  ApiErpDteTransmitirRoute: ApiErpDteTransmitirRoute,
+  ApiHaciendaSimControlEscenarioRoute: ApiHaciendaSimControlEscenarioRoute,
+  ApiHaciendaSimFesvRecepciondteRoute: ApiHaciendaSimFesvRecepciondteRoute,
+  ApiErpDteTransmisionesIdRoute: ApiErpDteTransmisionesIdRoute,
+  ApiHaciendaSimFesvRecepcionConsultadteRoute:
+    ApiHaciendaSimFesvRecepcionConsultadteRoute,
+  ApiErpDteTransmisionesIndexRoute: ApiErpDteTransmisionesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

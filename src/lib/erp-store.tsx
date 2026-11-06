@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   clientesSeed,
   cotizacionesSeed,
@@ -21,8 +29,18 @@ import {
   type Rol,
   type Usuario,
 } from "./erp-data";
+import {
+  consultarEstadoDte,
+  esResultadoTransmision,
+  transmitirDte,
+  type ErrorSolicitud,
+  type RespuestaTransmision,
+} from "./dte-api";
 
 type Resultado = { ok: boolean; mensaje: string };
+
+/** Resultado de operaciones asíncronas contra el backend: `nivel` guía el aviso al usuario. */
+export type ResultadoEnvio = Resultado & { nivel: "exito" | "aviso" | "error" };
 
 type Ctx = {
   rolActivo: Rol;
@@ -50,7 +68,10 @@ type Ctx = {
   ) => Resultado;
   registrarDevolucion: (pedidoId: string, items: LineaItem[], motivo: string) => Resultado;
   generarFactura: (pedidoId: string) => Resultado;
-  enviarFacturaHacienda: (facturaId: string) => Resultado;
+  /** Facturas con un envío o consulta en curso (el envío puede tardar ~15 s con reintentos). */
+  enviandoIds: ReadonlySet<string>;
+  enviarFacturaHacienda: (facturaId: string) => Promise<ResultadoEnvio>;
+  consultarEstadoFactura: (facturaId: string) => Promise<ResultadoEnvio>;
   marcarPendienteEnvio: (facturaId: string) => Resultado;
   registrarEntrada: (codigo: string, cantidad: number, origen: string, referencia: string) => Resultado;
   registrarAjuste: (codigo: string, cantidad: number, motivo: string) => Resultado;
@@ -64,6 +85,11 @@ const ErpContext = createContext<Ctx | null>(null);
 
 let seq = 5000;
 const nid = (p: string) => `${p}-${++seq}`;
+// Los datos del prototipo viven en memoria y se reinician al recargar, pero la bitácora del
+// servidor persiste. Sin un sufijo de sesión, la factura nueva "FAC-5001" tras una recarga
+// se confundiría con la "FAC-5001" anterior y recibiría su sello. El sufijo evita la colisión.
+const sesion = Math.random().toString(36).slice(2, 6).toUpperCase();
+const nidUnico = (p: string) => `${p}-${++seq}-${sesion}`;
 const fecha = () => new Date().toISOString().slice(0, 10);
 
 export function ErpProvider({ children }: { children: ReactNode }) {
@@ -73,6 +99,9 @@ export function ErpProvider({ children }: { children: ReactNode }) {
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>(cotizacionesSeed);
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosSeed);
   const [facturas, setFacturas] = useState<Factura[]>(facturasSeed);
+  const [enviando, setEnviando] = useState<ReadonlySet<string>>(new Set());
+  // La ref evita dobles envíos dentro del mismo "tick", antes de que el estado se actualice.
+  const enVuelo = useRef(new Set<string>());
   const [devoluciones, setDevoluciones] = useState<Devolucion[]>(devolucionesSeed);
   const [movimientos, setMovimientos] = useState<Movimiento[]>(movimientosSeed);
   const [usuarios, setUsuarios] = useState<Usuario[]>(usuariosSeed);
@@ -260,7 +289,7 @@ export function ErpProvider({ children }: { children: ReactNode }) {
         return { ok: false, mensaje: "El pedido debe estar confirmado antes de facturar." };
       if (ped.facturaId) return { ok: false, mensaje: "Este pedido ya tiene factura asociada." };
       const imp = impuestos.find((i) => i.activo) ?? impuestos[0];
-      const fid = nid("FAC");
+      const fid = nidUnico("FAC");
       const folio = String(imp.folioActual + 1);
       setImpuestos((prev) =>
         prev.map((i) => (i.id === imp.id ? { ...i, folioActual: i.folioActual + 1 } : i)),
@@ -284,40 +313,187 @@ export function ErpProvider({ children }: { children: ReactNode }) {
     [pedidos, impuestos],
   );
 
-  /** HU-08: simula el envío a la Entidad Tributaria y su respuesta. */
+  const marcarEnviando = useCallback((id: string, activo: boolean) => {
+    setEnviando((prev) => {
+      const siguiente = new Set(prev);
+      if (activo) siguiente.add(id);
+      else siguiente.delete(id);
+      return siguiente;
+    });
+  }, []);
+
+  /** Refleja en la factura el resultado devuelto por el backend del ERP. */
+  const aplicarResultado = useCallback((facturaId: string, d: RespuestaTransmision) => {
+    setFacturas((prev) =>
+      prev.map((f) =>
+        f.id === facturaId
+          ? {
+              ...f,
+              estado: d.facturaEstado,
+              selloElectronico: d.selloRecibido ?? undefined,
+              mensajeHacienda: d.mensaje,
+              codigoGeneracion: d.codigoGeneracion,
+              numeroControl: d.numeroControl,
+              codigoMsg: d.codigoMsg ?? undefined,
+              descripcionMsg: d.descripcionMsg ?? undefined,
+              fhProcesamiento: d.fhProcesamiento ?? undefined,
+              observaciones: d.observaciones,
+              transmisionId: d.transmisionId,
+              totalDte: d.totales?.totalPagar,
+              // Si el servidor solo devolvió lo ya registrado (0 envíos), se conservan los contadores.
+              ...(d.yaEmitida
+                ? {}
+                : {
+                    envios: d.envios,
+                    consultas: d.consultas,
+                    recuperadoPorConsulta: d.recuperadoPorConsulta,
+                  }),
+            }
+          : f,
+      ),
+    );
+  }, []);
+
+  /**
+   * HU-08: envía la factura a la API (simulada) de Hacienda a través del backend del ERP y
+   * refleja el resultado. Es asíncrona: con reintentos puede tardar unos 15 s.
+   */
   const enviarFacturaHacienda = useCallback<Ctx["enviarFacturaHacienda"]>(
-    (facturaId) => {
+    async (facturaId) => {
       const fac = facturas.find((f) => f.id === facturaId);
-      if (!fac) return { ok: false, mensaje: "Factura no encontrada." };
-      if (fac.estado === "Emitida") return { ok: false, mensaje: "La factura ya fue sellada." };
+      if (!fac) return { ok: false, nivel: "error", mensaje: "Factura no encontrada." };
+      if (fac.estado === "Emitida")
+        return { ok: false, nivel: "aviso", mensaje: "La factura ya fue sellada." };
       const cli = clientes.find((c) => c.id === fac.clienteId);
-      const documentoValido = !!cli && cli.documento.replace(/\D/g, "").length >= 8;
-      if (!documentoValido) {
+      if (!cli)
+        return { ok: false, nivel: "error", mensaje: "No se encontró el cliente de la factura." };
+      if (enVuelo.current.has(facturaId))
+        return {
+          ok: false,
+          nivel: "aviso",
+          mensaje: "Ya hay un envío en curso para esta factura.",
+        };
+
+      enVuelo.current.add(facturaId);
+      marcarEnviando(facturaId, true);
+      try {
+        const r = await transmitirDte(fac, cli);
+        if (r.tipo === "timeout") {
+          return {
+            ok: false,
+            nivel: "aviso",
+            mensaje:
+              "El servidor tardó demasiado en responder. Use «Consultar estado» para verificar si Hacienda recibió el documento.",
+          };
+        }
+        if (r.tipo === "sin_conexion") {
+          return {
+            ok: false,
+            nivel: "error",
+            mensaje:
+              "No fue posible comunicarse con el servidor del ERP. La factura conserva su estado.",
+          };
+        }
+        if (!esResultadoTransmision(r.datos)) {
+          const e = r.datos as ErrorSolicitud | null;
+          const detalle = e?.detalles?.length ? ` ${e.detalles.join("; ")}` : "";
+          return {
+            ok: false,
+            nivel: "error",
+            mensaje: `${e?.mensaje ?? `El servidor respondió con un error (HTTP ${r.status}).`}${detalle}`,
+          };
+        }
+
+        const d = r.datos;
+        aplicarResultado(facturaId, d);
+        if (d.ok) {
+          return {
+            ok: true,
+            nivel: d.yaEmitida ? "aviso" : "exito",
+            mensaje: d.yaEmitida
+              ? d.mensaje
+              : `DTE emitido. Sello: ${d.selloRecibido}${d.recuperadoPorConsulta ? " (recuperado por consulta de estado)" : ""}`,
+          };
+        }
+        return {
+          ok: false,
+          nivel: d.resultado === "rechazado" ? "error" : "aviso",
+          mensaje: d.mensaje,
+        };
+      } finally {
+        enVuelo.current.delete(facturaId);
+        marcarEnviando(facturaId, false);
+      }
+    },
+    [facturas, clientes, aplicarResultado, marcarEnviando],
+  );
+
+  /** Pregunta a Hacienda si ya tiene el documento y, si es así, concilia la factura como emitida. */
+  const consultarEstadoFactura = useCallback<Ctx["consultarEstadoFactura"]>(
+    async (facturaId) => {
+      if (enVuelo.current.has(facturaId))
+        return {
+          ok: false,
+          nivel: "aviso",
+          mensaje: "Hay una operación en curso para esta factura.",
+        };
+
+      enVuelo.current.add(facturaId);
+      marcarEnviando(facturaId, true);
+      try {
+        const r = await consultarEstadoDte(facturaId);
+        if (r.tipo === "timeout") {
+          return {
+            ok: false,
+            nivel: "aviso",
+            mensaje: "La consulta tardó demasiado. Intente de nuevo.",
+          };
+        }
+        if (r.tipo === "sin_conexion" || !r.datos) {
+          return {
+            ok: false,
+            nivel: "error",
+            mensaje: "No fue posible comunicarse con el servidor del ERP.",
+          };
+        }
+        const d = r.datos;
+        if (!d.ok) {
+          return d.motivo === "desconocida"
+            ? {
+                ok: false,
+                nivel: "aviso",
+                mensaje: "Esta factura aún no se ha enviado a Hacienda.",
+              }
+            : { ok: false, nivel: "error", mensaje: d.mensaje };
+        }
+        if (!d.encontrado) {
+          return {
+            ok: false,
+            nivel: "aviso",
+            mensaje: "Hacienda no tiene registrado este documento.",
+          };
+        }
         setFacturas((prev) =>
           prev.map((f) =>
             f.id === facturaId
-              ? { ...f, estado: "Rechazada", mensajeHacienda: "DUI/NIT del receptor inválido o incompleto." }
+              ? {
+                  ...f,
+                  estado: "Emitida",
+                  selloElectronico: d.selloRecibido ?? f.selloElectronico,
+                  fhProcesamiento: d.fhProcesamiento ?? f.fhProcesamiento,
+                  codigoGeneracion: d.codigoGeneracion,
+                  mensajeHacienda: d.mensaje,
+                }
               : f,
           ),
         );
-        return { ok: false, mensaje: "Rechazado por la Entidad Tributaria: DUI/NIT inválido." };
+        return { ok: true, nivel: d.conciliada ? "exito" : "aviso", mensaje: d.mensaje };
+      } finally {
+        enVuelo.current.delete(facturaId);
+        marcarEnviando(facturaId, false);
       }
-      const sello = `2026-${Math.random().toString(16).slice(2, 10).toUpperCase()}-${fac.serie}-${fac.folio.padStart(16, "0")}`;
-      setFacturas((prev) =>
-        prev.map((f) =>
-          f.id === facturaId
-            ? {
-                ...f,
-                estado: "Emitida",
-                selloElectronico: sello,
-                mensajeHacienda: "Comprobante recibido y sellado correctamente.",
-              }
-            : f,
-        ),
-      );
-      return { ok: true, mensaje: `DTE sellado por la Entidad Tributaria. Sello: ${sello}` };
     },
-    [facturas, clientes],
+    [marcarEnviando],
   );
 
   const marcarPendienteEnvio = useCallback<Ctx["marcarPendienteEnvio"]>((facturaId) => {
@@ -404,7 +580,9 @@ export function ErpProvider({ children }: { children: ReactNode }) {
       registrarVentaDirecta,
       registrarDevolucion,
       generarFactura,
+      enviandoIds: enviando,
       enviarFacturaHacienda,
+      consultarEstadoFactura,
       marcarPendienteEnvio,
       registrarEntrada,
       registrarAjuste,
@@ -433,7 +611,9 @@ export function ErpProvider({ children }: { children: ReactNode }) {
       registrarVentaDirecta,
       registrarDevolucion,
       generarFactura,
+      enviando,
       enviarFacturaHacienda,
+      consultarEstadoFactura,
       marcarPendienteEnvio,
       registrarEntrada,
       registrarAjuste,

@@ -1,0 +1,954 @@
+diff --git a/.gitignore b/.gitignore
+index d24df8a..9a7fb82 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -30,3 +30,9 @@ dist-ssr
+ *.njsproj
+ *.sln
+ *.sw?
++
++# Secretos y datos generados por la API simulada de Hacienda
++.env
++.env.*
++!.env.example
++data/
+diff --git a/package.json b/package.json
+index 900706a..5a7b7f8 100644
+--- a/package.json
++++ b/package.json
+@@ -47,6 +47,7 @@
+     "@tanstack/react-router": "1.170.41",
+     "@tanstack/react-start": "1.168.60",
+     "@tanstack/router-plugin": "1.168.42",
++    "ajv8": "npm:ajv@^8.20.0",
+     "class-variance-authority": "^0.7.1",
+     "clsx": "^2.1.1",
+     "cmdk": "^1.1.1",
+diff --git a/src/lib/erp-data.ts b/src/lib/erp-data.ts
+index b5f508f..36965a2 100644
+--- a/src/lib/erp-data.ts
++++ b/src/lib/erp-data.ts
+@@ -93,6 +93,21 @@ export type Factura = {
+   estado: EstadoFactura;
+   selloElectronico?: string;
+   mensajeHacienda?: string;
++  // --- Resultado del último envío a la API (simulada) de Hacienda -------------
++  codigoGeneracion?: string;
++  numeroControl?: string;
++  /** Código del catálogo oficial de mensajes (001 = recibido, 002 = con observaciones...). */
++  codigoMsg?: string;
++  descripcionMsg?: string;
++  /** Fecha-hora de procesamiento informada por Hacienda (dd/MM/yyyy HH:mm:ss). */
++  fhProcesamiento?: string;
++  observaciones?: string[];
++  transmisionId?: string;
++  envios?: number;
++  consultas?: number;
++  recuperadoPorConsulta?: boolean;
++  /** Total a pagar según el DTE (puede diferir centavos del total del prototipo). */
++  totalDte?: number;
+ };
+ 
+ export type Devolucion = {
+@@ -170,6 +185,8 @@ export const clientesSeed: Cliente[] = [
+   { id: 11003, nombre: "Deportes El Pedal", documento: "0210-030716-101-9", direccion: "Av. Independencia, Santa Ana", telefono: "24409911", correo: "ventas@elpedal.sv", fechaRegistro: "2023-11-25" },
+   { id: 11004, nombre: "Carlos Alberto Menjívar", documento: "03998721-4", direccion: "Res. Altavista, Ilopango", telefono: "70129933", correo: "cmenjivar@correo.com", fechaRegistro: "2025-01-18" },
+   { id: 11005, nombre: "Club Ciclista Cuscatlán", documento: "0511-140312-103-1", direccion: "San Miguel Centro", telefono: "26619000", correo: "admin@cuscatlanbike.sv", fechaRegistro: "2024-09-30" },
++  // Cliente de PRUEBA: su documento es inválido a propósito para poder demostrar un rechazo (HU-08).
++  { id: 11006, nombre: "Cliente de prueba (documento inválido)", documento: "1234", direccion: "Dato ficticio para demostrar un rechazo", telefono: "70000000", correo: "prueba.rechazo@advwork.example", fechaRegistro: "2026-11-05" },
+ ];
+ 
+ export const usuariosSeed: Usuario[] = [
+diff --git a/src/lib/erp-store.tsx b/src/lib/erp-store.tsx
+index c0d0f4f..cc4bdee 100644
+--- a/src/lib/erp-store.tsx
++++ b/src/lib/erp-store.tsx
+@@ -1,4 +1,12 @@
+-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
++import {
++  createContext,
++  useCallback,
++  useContext,
++  useMemo,
++  useRef,
++  useState,
++  type ReactNode,
++} from "react";
+ import {
+   clientesSeed,
+   cotizacionesSeed,
+@@ -21,9 +29,19 @@ import {
+   type Rol,
+   type Usuario,
+ } from "./erp-data";
++import {
++  consultarEstadoDte,
++  esResultadoTransmision,
++  transmitirDte,
++  type ErrorSolicitud,
++  type RespuestaTransmision,
++} from "./dte-api";
+ 
+ type Resultado = { ok: boolean; mensaje: string };
+ 
++/** Resultado de operaciones asíncronas contra el backend: `nivel` guía el aviso al usuario. */
++export type ResultadoEnvio = Resultado & { nivel: "exito" | "aviso" | "error" };
++
+ type Ctx = {
+   rolActivo: Rol;
+   setRolActivo: (r: Rol) => void;
+@@ -50,7 +68,10 @@ type Ctx = {
+   ) => Resultado;
+   registrarDevolucion: (pedidoId: string, items: LineaItem[], motivo: string) => Resultado;
+   generarFactura: (pedidoId: string) => Resultado;
+-  enviarFacturaHacienda: (facturaId: string) => Resultado;
++  /** Facturas con un envío o consulta en curso (el envío puede tardar ~15 s con reintentos). */
++  enviandoIds: ReadonlySet<string>;
++  enviarFacturaHacienda: (facturaId: string) => Promise<ResultadoEnvio>;
++  consultarEstadoFactura: (facturaId: string) => Promise<ResultadoEnvio>;
+   marcarPendienteEnvio: (facturaId: string) => Resultado;
+   registrarEntrada: (codigo: string, cantidad: number, origen: string, referencia: string) => Resultado;
+   registrarAjuste: (codigo: string, cantidad: number, motivo: string) => Resultado;
+@@ -64,6 +85,11 @@ const ErpContext = createContext<Ctx | null>(null);
+ 
+ let seq = 5000;
+ const nid = (p: string) => `${p}-${++seq}`;
++// Los datos del prototipo viven en memoria y se reinician al recargar, pero la bitácora del
++// servidor persiste. Sin un sufijo de sesión, la factura nueva "FAC-5001" tras una recarga
++// se confundiría con la "FAC-5001" anterior y recibiría su sello. El sufijo evita la colisión.
++const sesion = Math.random().toString(36).slice(2, 6).toUpperCase();
++const nidUnico = (p: string) => `${p}-${++seq}-${sesion}`;
+ const fecha = () => new Date().toISOString().slice(0, 10);
+ 
+ export function ErpProvider({ children }: { children: ReactNode }) {
+@@ -73,6 +99,9 @@ export function ErpProvider({ children }: { children: ReactNode }) {
+   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>(cotizacionesSeed);
+   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosSeed);
+   const [facturas, setFacturas] = useState<Factura[]>(facturasSeed);
++  const [enviando, setEnviando] = useState<ReadonlySet<string>>(new Set());
++  // La ref evita dobles envíos dentro del mismo "tick", antes de que el estado se actualice.
++  const enVuelo = useRef(new Set<string>());
+   const [devoluciones, setDevoluciones] = useState<Devolucion[]>(devolucionesSeed);
+   const [movimientos, setMovimientos] = useState<Movimiento[]>(movimientosSeed);
+   const [usuarios, setUsuarios] = useState<Usuario[]>(usuariosSeed);
+@@ -260,7 +289,7 @@ export function ErpProvider({ children }: { children: ReactNode }) {
+         return { ok: false, mensaje: "El pedido debe estar confirmado antes de facturar." };
+       if (ped.facturaId) return { ok: false, mensaje: "Este pedido ya tiene factura asociada." };
+       const imp = impuestos.find((i) => i.activo) ?? impuestos[0];
+-      const fid = nid("FAC");
++      const fid = nidUnico("FAC");
+       const folio = String(imp.folioActual + 1);
+       setImpuestos((prev) =>
+         prev.map((i) => (i.id === imp.id ? { ...i, folioActual: i.folioActual + 1 } : i)),
+@@ -284,40 +313,187 @@ export function ErpProvider({ children }: { children: ReactNode }) {
+     [pedidos, impuestos],
+   );
+ 
+-  /** HU-08: simula el envío a la Entidad Tributaria y su respuesta. */
++  const marcarEnviando = useCallback((id: string, activo: boolean) => {
++    setEnviando((prev) => {
++      const siguiente = new Set(prev);
++      if (activo) siguiente.add(id);
++      else siguiente.delete(id);
++      return siguiente;
++    });
++  }, []);
++
++  /** Refleja en la factura el resultado devuelto por el backend del ERP. */
++  const aplicarResultado = useCallback((facturaId: string, d: RespuestaTransmision) => {
++    setFacturas((prev) =>
++      prev.map((f) =>
++        f.id === facturaId
++          ? {
++              ...f,
++              estado: d.facturaEstado,
++              selloElectronico: d.selloRecibido ?? undefined,
++              mensajeHacienda: d.mensaje,
++              codigoGeneracion: d.codigoGeneracion,
++              numeroControl: d.numeroControl,
++              codigoMsg: d.codigoMsg ?? undefined,
++              descripcionMsg: d.descripcionMsg ?? undefined,
++              fhProcesamiento: d.fhProcesamiento ?? undefined,
++              observaciones: d.observaciones,
++              transmisionId: d.transmisionId,
++              totalDte: d.totales?.totalPagar,
++              // Si el servidor solo devolvió lo ya registrado (0 envíos), se conservan los contadores.
++              ...(d.yaEmitida
++                ? {}
++                : {
++                    envios: d.envios,
++                    consultas: d.consultas,
++                    recuperadoPorConsulta: d.recuperadoPorConsulta,
++                  }),
++            }
++          : f,
++      ),
++    );
++  }, []);
++
++  /**
++   * HU-08: envía la factura a la API (simulada) de Hacienda a través del backend del ERP y
++   * refleja el resultado. Es asíncrona: con reintentos puede tardar unos 15 s.
++   */
+   const enviarFacturaHacienda = useCallback<Ctx["enviarFacturaHacienda"]>(
+-    (facturaId) => {
++    async (facturaId) => {
+       const fac = facturas.find((f) => f.id === facturaId);
+-      if (!fac) return { ok: false, mensaje: "Factura no encontrada." };
+-      if (fac.estado === "Emitida") return { ok: false, mensaje: "La factura ya fue sellada." };
++      if (!fac) return { ok: false, nivel: "error", mensaje: "Factura no encontrada." };
++      if (fac.estado === "Emitida")
++        return { ok: false, nivel: "aviso", mensaje: "La factura ya fue sellada." };
+       const cli = clientes.find((c) => c.id === fac.clienteId);
+-      const documentoValido = !!cli && cli.documento.replace(/\D/g, "").length >= 8;
+-      if (!documentoValido) {
++      if (!cli)
++        return { ok: false, nivel: "error", mensaje: "No se encontró el cliente de la factura." };
++      if (enVuelo.current.has(facturaId))
++        return {
++          ok: false,
++          nivel: "aviso",
++          mensaje: "Ya hay un envío en curso para esta factura.",
++        };
++
++      enVuelo.current.add(facturaId);
++      marcarEnviando(facturaId, true);
++      try {
++        const r = await transmitirDte(fac, cli);
++        if (r.tipo === "timeout") {
++          return {
++            ok: false,
++            nivel: "aviso",
++            mensaje:
++              "El servidor tardó demasiado en responder. Use «Consultar estado» para verificar si Hacienda recibió el documento.",
++          };
++        }
++        if (r.tipo === "sin_conexion") {
++          return {
++            ok: false,
++            nivel: "error",
++            mensaje:
++              "No fue posible comunicarse con el servidor del ERP. La factura conserva su estado.",
++          };
++        }
++        if (!esResultadoTransmision(r.datos)) {
++          const e = r.datos as ErrorSolicitud | null;
++          const detalle = e?.detalles?.length ? ` ${e.detalles.join("; ")}` : "";
++          return {
++            ok: false,
++            nivel: "error",
++            mensaje: `${e?.mensaje ?? `El servidor respondió con un error (HTTP ${r.status}).`}${detalle}`,
++          };
++        }
++
++        const d = r.datos;
++        aplicarResultado(facturaId, d);
++        if (d.ok) {
++          return {
++            ok: true,
++            nivel: d.yaEmitida ? "aviso" : "exito",
++            mensaje: d.yaEmitida
++              ? d.mensaje
++              : `DTE emitido. Sello: ${d.selloRecibido}${d.recuperadoPorConsulta ? " (recuperado por consulta de estado)" : ""}`,
++          };
++        }
++        return {
++          ok: false,
++          nivel: d.resultado === "rechazado" ? "error" : "aviso",
++          mensaje: d.mensaje,
++        };
++      } finally {
++        enVuelo.current.delete(facturaId);
++        marcarEnviando(facturaId, false);
++      }
++    },
++    [facturas, clientes, aplicarResultado, marcarEnviando],
++  );
++
++  /** Pregunta a Hacienda si ya tiene el documento y, si es así, concilia la factura como emitida. */
++  const consultarEstadoFactura = useCallback<Ctx["consultarEstadoFactura"]>(
++    async (facturaId) => {
++      if (enVuelo.current.has(facturaId))
++        return {
++          ok: false,
++          nivel: "aviso",
++          mensaje: "Hay una operación en curso para esta factura.",
++        };
++
++      enVuelo.current.add(facturaId);
++      marcarEnviando(facturaId, true);
++      try {
++        const r = await consultarEstadoDte(facturaId);
++        if (r.tipo === "timeout") {
++          return {
++            ok: false,
++            nivel: "aviso",
++            mensaje: "La consulta tardó demasiado. Intente de nuevo.",
++          };
++        }
++        if (r.tipo === "sin_conexion" || !r.datos) {
++          return {
++            ok: false,
++            nivel: "error",
++            mensaje: "No fue posible comunicarse con el servidor del ERP.",
++          };
++        }
++        const d = r.datos;
++        if (!d.ok) {
++          return d.motivo === "desconocida"
++            ? {
++                ok: false,
++                nivel: "aviso",
++                mensaje: "Esta factura aún no se ha enviado a Hacienda.",
++              }
++            : { ok: false, nivel: "error", mensaje: d.mensaje };
++        }
++        if (!d.encontrado) {
++          return {
++            ok: false,
++            nivel: "aviso",
++            mensaje: "Hacienda no tiene registrado este documento.",
++          };
++        }
+         setFacturas((prev) =>
+           prev.map((f) =>
+             f.id === facturaId
+-              ? { ...f, estado: "Rechazada", mensajeHacienda: "DUI/NIT del receptor inválido o incompleto." }
++              ? {
++                  ...f,
++                  estado: "Emitida",
++                  selloElectronico: d.selloRecibido ?? f.selloElectronico,
++                  fhProcesamiento: d.fhProcesamiento ?? f.fhProcesamiento,
++                  codigoGeneracion: d.codigoGeneracion,
++                  mensajeHacienda: d.mensaje,
++                }
+               : f,
+           ),
+         );
+-        return { ok: false, mensaje: "Rechazado por la Entidad Tributaria: DUI/NIT inválido." };
++        return { ok: true, nivel: d.conciliada ? "exito" : "aviso", mensaje: d.mensaje };
++      } finally {
++        enVuelo.current.delete(facturaId);
++        marcarEnviando(facturaId, false);
+       }
+-      const sello = `2026-${Math.random().toString(16).slice(2, 10).toUpperCase()}-${fac.serie}-${fac.folio.padStart(16, "0")}`;
+-      setFacturas((prev) =>
+-        prev.map((f) =>
+-          f.id === facturaId
+-            ? {
+-                ...f,
+-                estado: "Emitida",
+-                selloElectronico: sello,
+-                mensajeHacienda: "Comprobante recibido y sellado correctamente.",
+-              }
+-            : f,
+-        ),
+-      );
+-      return { ok: true, mensaje: `DTE sellado por la Entidad Tributaria. Sello: ${sello}` };
+     },
+-    [facturas, clientes],
++    [marcarEnviando],
+   );
+ 
+   const marcarPendienteEnvio = useCallback<Ctx["marcarPendienteEnvio"]>((facturaId) => {
+@@ -404,7 +580,9 @@ export function ErpProvider({ children }: { children: ReactNode }) {
+       registrarVentaDirecta,
+       registrarDevolucion,
+       generarFactura,
++      enviandoIds: enviando,
+       enviarFacturaHacienda,
++      consultarEstadoFactura,
+       marcarPendienteEnvio,
+       registrarEntrada,
+       registrarAjuste,
+@@ -433,7 +611,9 @@ export function ErpProvider({ children }: { children: ReactNode }) {
+       registrarVentaDirecta,
+       registrarDevolucion,
+       generarFactura,
++      enviando,
+       enviarFacturaHacienda,
++      consultarEstadoFactura,
+       marcarPendienteEnvio,
+       registrarEntrada,
+       registrarAjuste,
+diff --git a/src/routes/facturacion.index.tsx b/src/routes/facturacion.index.tsx
+index ed04776..d30049d 100644
+--- a/src/routes/facturacion.index.tsx
++++ b/src/routes/facturacion.index.tsx
+@@ -1,10 +1,20 @@
+ import { createFileRoute } from "@tanstack/react-router";
+-import { useState } from "react";
++import { useEffect, useState } from "react";
+ import { toast } from "sonner";
+-import { Download, Send } from "lucide-react";
++import { Download, Loader2, RefreshCw, Send } from "lucide-react";
+ import { useErp } from "@/lib/erp-store";
+-import { money, totales } from "@/lib/erp-data";
+-import { Campo, Estado, inputCls, PageHeader, Panel, Tabla, tonoEstado, Vacio } from "@/components/erp/ui";
++import { money, totales, type Factura } from "@/lib/erp-data";
++import { detalleTransmision, listarTransmisiones, type ResumenTransmision } from "@/lib/dte-api";
++import {
++  Campo,
++  Estado,
++  inputCls,
++  PageHeader,
++  Panel,
++  Tabla,
++  tonoEstado,
++  Vacio,
++} from "@/components/erp/ui";
+ 
+ export const Route = createFileRoute("/facturacion/")({
+   head: () => ({
+@@ -25,8 +35,54 @@ export const Route = createFileRoute("/facturacion/")({
+   component: Facturacion,
+ });
+ 
++type Aviso = { ok: boolean; mensaje: string; nivel?: "exito" | "aviso" | "error" };
++
++const avisar = (r: Aviso) => {
++  const nivel = r.nivel ?? (r.ok ? "exito" : "error");
++  if (nivel === "exito") toast.success(r.mensaje);
++  else if (nivel === "aviso") toast.warning(r.mensaje);
++  else toast.error(r.mensaje);
++};
++
++function guardarArchivo(contenido: string, nombre: string, tipo: string) {
++  const url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
++  const a = document.createElement("a");
++  a.href = url;
++  a.download = nombre;
++  a.click();
++  URL.revokeObjectURL(url);
++}
++
++const ETIQUETA_RESULTADO: Record<string, string> = {
++  aceptado: "Aceptado",
++  aceptado_con_observaciones: "Aceptado con observaciones",
++  rechazado: "Rechazado",
++  sin_respuesta: "Sin respuesta",
++  servicio_no_disponible: "Servicio no disponible",
++  error_servicio: "Error del servicio",
++  error_autenticacion: "Error de autenticación",
++  respuesta_inesperada: "Respuesta inesperada",
++};
++const ETIQUETA_ORIGEN: Record<string, string> = {
++  envio: "Envío",
++  consulta_manual: "Consulta manual",
++};
++const tonoResultado = (r: string | null) =>
++  r === "aceptado" || r === "aceptado_con_observaciones"
++    ? "success"
++    : r === "rechazado"
++      ? "danger"
++      : "warning";
++
+ function Facturacion() {
+-  const { facturas, clientePorId, enviarFacturaHacienda, marcarPendienteEnvio } = useErp();
++  const {
++    facturas,
++    clientePorId,
++    enviandoIds,
++    enviarFacturaHacienda,
++    consultarEstadoFactura,
++    marcarPendienteEnvio,
++  } = useErp();
+   const [q, setQ] = useState("");
+   const [fecha, setFecha] = useState("");
+   const [abierta, setAbierta] = useState<string | null>(null);
+@@ -41,8 +97,13 @@ function Facturacion() {
+     )
+     .filter((f) => (fecha ? f.fecha === fecha : true));
+ 
+-  const accion = (r: { ok: boolean; mensaje: string }) =>
+-    r.ok ? toast.success(r.mensaje) : toast.error(r.mensaje);
++  const enviar = async (id: string) => {
++    const r = await enviarFacturaHacienda(id);
++    avisar(r);
++    setAbierta(id); // se muestra el resultado detallado del envío
++  };
++
++  const consultar = async (id: string) => avisar(await consultarEstadoFactura(id));
+ 
+   const descargar = (id: string) => {
+     const f = facturas.find((x) => x.id === id)!;
+@@ -51,6 +112,8 @@ function Facturacion() {
+     const texto = [
+       "DOCUMENTO TRIBUTARIO ELECTRÓNICO (simulado)",
+       `Serie/Folio: ${f.serie}-${f.folio}`,
++      ...(f.numeroControl ? [`Número de control: ${f.numeroControl}`] : []),
++      ...(f.codigoGeneracion ? [`Código de generación: ${f.codigoGeneracion}`] : []),
+       `Fecha: ${f.fecha}`,
+       `Receptor: ${cli.nombre} — ${cli.documento}`,
+       "",
+@@ -59,14 +122,11 @@ function Facturacion() {
+       `Subtotal: ${money(t.subtotal)}`,
+       `IVA 13%: ${money(t.impuesto)}`,
+       `Total: ${money(t.total)}`,
++      ...(f.totalDte !== undefined ? [`Total según el DTE: ${money(f.totalDte)}`] : []),
+       `Sello electrónico: ${f.selloElectronico ?? "PENDIENTE"}`,
++      ...(f.fhProcesamiento ? [`Procesado: ${f.fhProcesamiento}`] : []),
+     ].join("\n");
+-    const url = URL.createObjectURL(new Blob([texto], { type: "text/plain" }));
+-    const a = document.createElement("a");
+-    a.href = url;
+-    a.download = `${f.serie}-${f.folio}.txt`;
+-    a.click();
+-    URL.revokeObjectURL(url);
++    guardarArchivo(texto, `${f.serie}-${f.folio}.txt`, "text/plain");
+     toast.success("Comprobante descargado (simulación del PDF/XML).");
+   };
+ 
+@@ -81,100 +141,115 @@ function Facturacion() {
+       <Panel titulo="Historial de facturas">
+         <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[2fr_1fr]">
+           <Campo label="Buscar por folio, documento o cliente">
+-            <input className={inputCls} value={q} onChange={(e) => setQ(e.target.value)} placeholder="1041, FAC-0155, Rivas…" />
++            <input
++              className={inputCls}
++              value={q}
++              onChange={(e) => setQ(e.target.value)}
++              placeholder="1041, FAC-0155, Rivas…"
++            />
+           </Campo>
+           <Campo label="Fecha de emisión">
+-            <input type="date" className={inputCls} value={fecha} onChange={(e) => setFecha(e.target.value)} />
++            <input
++              type="date"
++              className={inputCls}
++              value={fecha}
++              onChange={(e) => setFecha(e.target.value)}
++            />
+           </Campo>
+         </div>
+ 
+         {lista.length ? (
+-          <Tabla cabeceras={["Documento", "Serie-Folio", "Cliente", "Fecha", "Estado", "Total", "Acciones"]}>
+-            {lista.map((f) => (
+-              <tr key={f.id}>
+-                <td className="px-4 py-3 font-mono text-xs">{f.id}</td>
+-                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+-                  {f.serie}-{f.folio}
+-                </td>
+-                <td className="px-4 py-3 text-sm">{clientePorId(f.clienteId)?.nombre}</td>
+-                <td className="px-4 py-3 text-xs text-muted-foreground">{f.fecha}</td>
+-                <td className="px-4 py-3">
+-                  <Estado tono={tonoEstado(f.estado)}>{f.estado}</Estado>
+-                </td>
+-                <td className="px-4 py-3 text-right tabular-nums">{money(totales(f.items).total)}</td>
+-                <td className="px-4 py-3">
+-                  <div className="flex flex-wrap justify-end gap-2">
+-                    <button
+-                      onClick={() => accion(marcarPendienteEnvio(f.id))}
+-                      disabled={f.estado === "Emitida"}
+-                      className="rounded-md bg-secondary px-2.5 py-1.5 text-xs font-semibold text-secondary-foreground disabled:opacity-40"
+-                    >
+-                      Pendiente
+-                    </button>
+-                    <button
+-                      onClick={() => accion(enviarFacturaHacienda(f.id))}
+-                      disabled={f.estado === "Emitida"}
+-                      className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+-                    >
+-                      <Send className="size-3" /> Enviar
+-                    </button>
+-                    <button
+-                      onClick={() => descargar(f.id)}
+-                      className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-accent-foreground"
+-                    >
+-                      <Download className="size-3" /> Descargar
+-                    </button>
+-                    <button
+-                      onClick={() => setAbierta(abierta === f.id ? null : f.id)}
+-                      className="text-xs font-semibold text-info hover:underline"
+-                    >
+-                      {abierta === f.id ? "Ocultar" : "Ver"}
+-                    </button>
+-                  </div>
+-                </td>
+-              </tr>
+-            ))}
+-            {abierta && (() => {
+-              const f = lista.find((x) => x.id === abierta);
+-              if (!f) return null;
+-              const t = totales(f.items);
++          <Tabla
++            cabeceras={[
++              "Documento",
++              "Serie-Folio",
++              "Cliente",
++              "Fecha",
++              "Estado",
++              "Total",
++              "Acciones",
++            ]}
++          >
++            {lista.map((f) => {
++              const enCurso = enviandoIds.has(f.id);
+               return (
+-                <tr>
+-                  <td colSpan={7} className="bg-muted/50 px-5 py-4">
+-                    <p className="label-caps mb-2">Vista previa del comprobante</p>
+-                    <ul className="space-y-1 text-xs">
+-                      {f.items.map((i) => (
+-                        <li key={i.codigo} className="flex justify-between">
+-                          <span>
+-                            {i.cantidad} × {i.nombre}
+-                          </span>
+-                          <span className="tabular-nums">{money(i.cantidad * i.precio)}</span>
+-                        </li>
+-                      ))}
+-                    </ul>
+-                    <div className="mt-2 border-t border-border pt-2 text-xs">
+-                      <p className="flex justify-between">
+-                        <span>Subtotal</span> <span className="tabular-nums">{money(t.subtotal)}</span>
+-                      </p>
+-                      <p className="flex justify-between">
+-                        <span>IVA 13%</span> <span className="tabular-nums">{money(t.impuesto)}</span>
+-                      </p>
+-                      <p className="flex justify-between font-semibold">
+-                        <span>Total</span> <span className="tabular-nums">{money(t.total)}</span>
+-                      </p>
+-                    </div>
+-                    <p className="mt-3 font-mono text-[11px] text-muted-foreground">
+-                      Sello: {f.selloElectronico ?? "— sin sellar —"}
+-                    </p>
+-                    {f.mensajeHacienda && (
+-                      <p className="mt-1 text-xs text-muted-foreground">
+-                        Respuesta de la Entidad Tributaria: {f.mensajeHacienda}
++                <tr key={f.id} aria-busy={enCurso}>
++                  <td className="px-4 py-3 font-mono text-xs">{f.id}</td>
++                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
++                    {f.serie}-{f.folio}
++                  </td>
++                  <td className="px-4 py-3 text-sm">{clientePorId(f.clienteId)?.nombre}</td>
++                  <td className="px-4 py-3 text-xs text-muted-foreground">{f.fecha}</td>
++                  <td className="px-4 py-3">
++                    <Estado tono={tonoEstado(f.estado)}>{f.estado}</Estado>
++                    {enCurso && (
++                      <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
++                        <Loader2 className="size-3 animate-spin" />
++                        Comunicando con Hacienda… (puede tardar unos 15 s)
+                       </p>
+                     )}
+                   </td>
++                  <td className="px-4 py-3 text-right tabular-nums">
++                    {money(totales(f.items).total)}
++                  </td>
++                  <td className="px-4 py-3">
++                    <div className="flex flex-wrap justify-end gap-2">
++                      <button
++                        onClick={() => avisar(marcarPendienteEnvio(f.id))}
++                        disabled={f.estado === "Emitida" || enCurso}
++                        className="rounded-md bg-secondary px-2.5 py-1.5 text-xs font-semibold text-secondary-foreground disabled:opacity-40"
++                      >
++                        Pendiente
++                      </button>
++                      <button
++                        onClick={() => void enviar(f.id)}
++                        disabled={f.estado === "Emitida" || enCurso}
++                        className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
++                      >
++                        {enCurso ? (
++                          <>
++                            <Loader2 className="size-3 animate-spin" /> Enviando…
++                          </>
++                        ) : (
++                          <>
++                            <Send className="size-3" />{" "}
++                            {f.estado === "Borrador" ? "Enviar" : "Reenviar"}
++                          </>
++                        )}
++                      </button>
++                      <button
++                        onClick={() => descargar(f.id)}
++                        className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-accent-foreground"
++                      >
++                        <Download className="size-3" /> Descargar
++                      </button>
++                      <button
++                        onClick={() => setAbierta(abierta === f.id ? null : f.id)}
++                        className="text-xs font-semibold text-info hover:underline"
++                      >
++                        {abierta === f.id ? "Ocultar" : "Ver"}
++                      </button>
++                    </div>
++                  </td>
+                 </tr>
+               );
+-            })()}
++            })}
++            {abierta &&
++              (() => {
++                const f = lista.find((x) => x.id === abierta);
++                if (!f) return null;
++                return (
++                  <tr>
++                    <td colSpan={7} className="bg-muted/50 px-5 py-4">
++                      <DetalleFactura
++                        f={f}
++                        enCurso={enviandoIds.has(f.id)}
++                        onConsultar={() => void consultar(f.id)}
++                      />
++                    </td>
++                  </tr>
++                );
++              })()}
+           </Tabla>
+         ) : (
+           <Vacio>No hay comprobantes que coincidan con los filtros.</Vacio>
+@@ -183,3 +258,254 @@ function Facturacion() {
+     </>
+   );
+ }
++
++function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
++  return (
++    <div>
++      <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
++        {etiqueta}
++      </dt>
++      <dd className="mt-0.5 break-all text-xs">{children}</dd>
++    </div>
++  );
++}
++
++function DetalleFactura({
++  f,
++  enCurso,
++  onConsultar,
++}: {
++  f: Factura;
++  enCurso: boolean;
++  onConsultar: () => void;
++}) {
++  const t = totales(f.items);
++  const hayResultado = !!(f.transmisionId || f.selloElectronico || f.mensajeHacienda);
++  const puedeConsultar =
++    !!f.transmisionId || f.estado === "Pendiente de envío" || f.estado === "Rechazada";
++  const difiere = f.totalDte !== undefined && Math.abs(f.totalDte - t.total) >= 0.005;
++
++  const descargarDte = async () => {
++    if (!f.transmisionId) return;
++    const r = await detalleTransmision(f.transmisionId);
++    if (r.tipo !== "respuesta" || r.status !== 200 || !r.datos) {
++      toast.error("No se pudo obtener el DTE del servidor.");
++      return;
++    }
++    guardarArchivo(
++      JSON.stringify(r.datos.dte, null, 2),
++      `${r.datos.numeroControl}.json`,
++      "application/json",
++    );
++    toast.success("DTE descargado (JSON sin firmar; la firma simulada se aplica al enviarlo).");
++  };
++
++  return (
++    <div className="space-y-4">
++      <div>
++        <p className="label-caps mb-2">Vista previa del comprobante</p>
++        <ul className="space-y-1 text-xs">
++          {f.items.map((i) => (
++            <li key={i.codigo} className="flex justify-between">
++              <span>
++                {i.cantidad} × {i.nombre}
++              </span>
++              <span className="tabular-nums">{money(i.cantidad * i.precio)}</span>
++            </li>
++          ))}
++        </ul>
++        <div className="mt-2 border-t border-border pt-2 text-xs">
++          <p className="flex justify-between">
++            <span>Subtotal</span> <span className="tabular-nums">{money(t.subtotal)}</span>
++          </p>
++          <p className="flex justify-between">
++            <span>IVA 13%</span> <span className="tabular-nums">{money(t.impuesto)}</span>
++          </p>
++          <p className="flex justify-between font-semibold">
++            <span>Total</span> <span className="tabular-nums">{money(t.total)}</span>
++          </p>
++          {difiere && (
++            <p className="mt-1 flex justify-between text-muted-foreground">
++              <span>Total según el DTE (redondeo por línea)</span>
++              <span className="tabular-nums">{money(f.totalDte!)}</span>
++            </p>
++          )}
++        </div>
++      </div>
++
++      <div className="border-t border-border pt-3">
++        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
++          <p className="label-caps">Resultado del envío</p>
++          <span className="rounded bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-warning-foreground">
++            Servicio simulado — no es el servicio real de Hacienda
++          </span>
++        </div>
++
++        {hayResultado ? (
++          <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
++            <Dato etiqueta="Estado">
++              <Estado tono={tonoEstado(f.estado)}>{f.estado}</Estado>
++            </Dato>
++            {f.mensajeHacienda && <Dato etiqueta="Mensaje">{f.mensajeHacienda}</Dato>}
++            {f.codigoMsg && (
++              <Dato etiqueta="Código de respuesta">
++                {f.codigoMsg}
++                {f.descripcionMsg ? ` — ${f.descripcionMsg}` : ""}
++              </Dato>
++            )}
++            <Dato etiqueta="Sello de recepción">
++              <span className="font-mono">{f.selloElectronico ?? "— sin sellar —"}</span>
++            </Dato>
++            {f.fhProcesamiento && <Dato etiqueta="Procesado">{f.fhProcesamiento}</Dato>}
++            {f.codigoGeneracion && (
++              <Dato etiqueta="Código de generación">
++                <span className="font-mono">{f.codigoGeneracion}</span>
++              </Dato>
++            )}
++            {f.numeroControl && (
++              <Dato etiqueta="Número de control">
++                <span className="font-mono">{f.numeroControl}</span>
++              </Dato>
++            )}
++            {f.envios !== undefined && (
++              <Dato etiqueta="Intentos">
++                {f.envios} envío(s), {f.consultas ?? 0} consulta(s)
++                {f.recuperadoPorConsulta && " — recuperado por consulta de estado"}
++              </Dato>
++            )}
++            {!!f.observaciones?.length && (
++              <Dato etiqueta="Observaciones">
++                <ul className="list-disc pl-4">
++                  {f.observaciones.map((o) => (
++                    <li key={o}>{o}</li>
++                  ))}
++                </ul>
++              </Dato>
++            )}
++          </dl>
++        ) : (
++          <p className="text-xs text-muted-foreground">
++            Esta factura aún no se ha enviado a Hacienda.
++          </p>
++        )}
++
++        <div className="mt-3 flex flex-wrap gap-2">
++          {puedeConsultar && (
++            <button
++              onClick={onConsultar}
++              disabled={enCurso}
++              className="inline-flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1.5 text-xs font-semibold text-secondary-foreground disabled:opacity-40"
++            >
++              <RefreshCw className={`size-3 ${enCurso ? "animate-spin" : ""}`} /> Consultar estado
++            </button>
++          )}
++          {f.transmisionId && (
++            <button
++              onClick={() => void descargarDte()}
++              className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-accent-foreground"
++            >
++              <Download className="size-3" /> Descargar DTE (JSON)
++            </button>
++          )}
++        </div>
++      </div>
++
++      <Historial facturaId={f.id} version={`${f.transmisionId ?? ""}|${f.estado}`} />
++    </div>
++  );
++}
++
++function Historial({ facturaId, version }: { facturaId: string; version: string }) {
++  const [est, setEst] = useState<{
++    cargando: boolean;
++    error: string | null;
++    lista: ResumenTransmision[];
++  }>({ cargando: true, error: null, lista: [] });
++
++  // `version` cambia tras cada envío/consulta y fuerza a recargar el historial del servidor.
++  useEffect(() => {
++    let vigente = true;
++    setEst((s) => ({ ...s, cargando: true, error: null }));
++    void listarTransmisiones(facturaId).then((r) => {
++      if (!vigente) return;
++      if (r.tipo === "respuesta" && r.status === 200 && r.datos) {
++        setEst({ cargando: false, error: null, lista: r.datos.transmisiones });
++      } else {
++        setEst({ cargando: false, error: "No se pudo cargar el historial de envíos.", lista: [] });
++      }
++    });
++    return () => {
++      vigente = false;
++    };
++  }, [facturaId, version]);
++
++  const descargar = async (id: string) => {
++    const r = await detalleTransmision(id);
++    if (r.tipo !== "respuesta" || r.status !== 200 || !r.datos) {
++      toast.error("No se pudo obtener el DTE del servidor.");
++      return;
++    }
++    guardarArchivo(
++      JSON.stringify(r.datos.dte, null, 2),
++      `${r.datos.numeroControl}-${id}.json`,
++      "application/json",
++    );
++    toast.success("DTE descargado (JSON sin firmar).");
++  };
++
++  return (
++    <div className="border-t border-border pt-3">
++      <p className="label-caps mb-2">Historial de envíos</p>
++      {est.cargando ? (
++        <p className="text-xs text-muted-foreground">Cargando historial…</p>
++      ) : est.error ? (
++        <p className="text-xs text-destructive">{est.error}</p>
++      ) : est.lista.length === 0 ? (
++        <p className="text-xs text-muted-foreground">Esta factura no tiene envíos registrados.</p>
++      ) : (
++        <Tabla
++          cabeceras={[
++            "Transmisión",
++            "Fecha",
++            "Tipo",
++            "Resultado",
++            "Código",
++            "Envíos / consultas",
++            "DTE",
++          ]}
++        >
++          {est.lista.map((t) => (
++            <tr key={t.id}>
++              <td className="px-4 py-2 font-mono text-xs">{t.id}</td>
++              <td className="px-4 py-2 text-xs text-muted-foreground">
++                {new Date(t.iniciadaEn).toLocaleString("es-SV")}
++              </td>
++              <td className="px-4 py-2 text-xs">{ETIQUETA_ORIGEN[t.origen] ?? t.origen}</td>
++              <td className="px-4 py-2">
++                {t.resultado ? (
++                  <Estado tono={tonoResultado(t.resultado)}>
++                    {ETIQUETA_RESULTADO[t.resultado] ?? t.resultado}
++                  </Estado>
++                ) : (
++                  <span className="text-xs text-muted-foreground">En proceso…</span>
++                )}
++              </td>
++              <td className="px-4 py-2 font-mono text-xs">{t.codigoMsg ?? "—"}</td>
++              <td className="px-4 py-2 text-xs tabular-nums">
++                {t.envios} / {t.consultas}
++              </td>
++              <td className="px-4 py-2">
++                <button
++                  onClick={() => void descargar(t.id)}
++                  className="text-xs font-semibold text-info hover:underline"
++                >
++                  JSON
++                </button>
++              </td>
++            </tr>
++          ))}
++        </Tabla>
++      )}
++    </div>
++  );
++}
