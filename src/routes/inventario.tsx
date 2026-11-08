@@ -29,6 +29,7 @@ function Inventario() {
   const [almacen, setAlmacen] = useState("Todos");
   const [entrada, setEntrada] = useState({ codigo: productos[0].codigo, cantidad: 10, origen: "Compra", referencia: "" });
   const [ajuste, setAjuste] = useState({ codigo: productos[0].codigo, cantidad: -1, motivo: "" });
+  const [procesando, setProcesando] = useState(false);
 
   const almacenes = ["Todos", ...Array.from(new Set(productos.map((p) => p.almacen)))];
   const lista = productos.filter((p) => almacen === "Todos" || p.almacen === almacen);
@@ -36,6 +37,20 @@ function Inventario() {
 
   const accion = (r: { ok: boolean; mensaje: string }) =>
     r.ok ? toast.success(r.mensaje) : toast.error(r.mensaje);
+
+  const aplicarEntrada = () => {
+    if (procesando) return;
+    setProcesando(true);
+    accion(registrarEntrada(entrada.codigo, entrada.cantidad, entrada.origen, entrada.referencia));
+    setProcesando(false);
+  };
+
+  const aplicarAjuste = () => {
+    if (procesando) return;
+    setProcesando(true);
+    accion(registrarAjuste(ajuste.codigo, ajuste.cantidad, ajuste.motivo));
+    setProcesando(false);
+  };
 
   const exportar = () => {
     const filas = [
@@ -135,10 +150,9 @@ function Inventario() {
               </Campo>
             </div>
             <button
-              onClick={() =>
-                accion(registrarEntrada(entrada.codigo, entrada.cantidad, entrada.origen, entrada.referencia))
-              }
-              className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              onClick={aplicarEntrada}
+              disabled={procesando}
+              className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
             >
               Registrar entrada
             </button>
@@ -179,8 +193,9 @@ function Inventario() {
               />
             </Campo>
             <button
-              onClick={() => accion(registrarAjuste(ajuste.codigo, ajuste.cantidad, ajuste.motivo))}
-              className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-opacity hover:opacity-90"
+              onClick={aplicarAjuste}
+              disabled={procesando}
+              className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               Aplicar ajuste
             </button>
