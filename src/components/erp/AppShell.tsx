@@ -1,7 +1,7 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import {
-
   Boxes,
   FileSpreadsheet,
   FileText,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { ROLES } from "@/lib/erp-data";
 import { useErp } from "@/lib/erp-store";
+import { itemsPermitidos, puedeAcceder, RUTA_INICIO } from "@/lib/rbac";
 
 const grupos = [
   {
@@ -53,21 +54,45 @@ const grupos = [
   },
 ] as const;
 
+/** Filtra los grupos del menú según el rol activo, eliminando grupos vacíos. */
+function gruposFiltrados(rol: (typeof ROLES)[number]) {
+  return grupos
+    .map((g) => ({ ...g, items: itemsPermitidos(rol, [...g.items]) }))
+    .filter((g) => g.items.length > 0);
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { rolActivo, setRolActivo } = useErp();
+  const navigate = useNavigate();
+  const rutaActual = useRouterState({ select: (s) => s.location.pathname });
+
+  // Redirige si el rol activo no tiene permiso para la ruta actual
+  useEffect(() => {
+    if (!puedeAcceder(rolActivo, rutaActual)) {
+      void navigate({ to: RUTA_INICIO[rolActivo] });
+    }
+  }, [rolActivo, rutaActual, navigate]);
+
+  const grupos_ = gruposFiltrados(rolActivo);
+  // Todos los ítems visibles (para la barra móvil)
+  const todosItems = grupos_.flatMap((g) => [...g.items]);
 
   return (
     <div className="flex min-h-screen bg-background">
+      {/* ── Sidebar escritorio ───────────────────────────────────────────── */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto bg-sidebar text-sidebar-foreground lg:flex">
-        <div className="border-b border-sidebar-border px-5 py-5">
-          <p className="font-display text-lg font-bold tracking-tight text-sidebar-accent-foreground">
-            AdvWork<span className="text-sidebar-primary">-ERP</span>
-          </p>
-          <p className="mt-0.5 text-[11px] text-sidebar-foreground/70">Adventure Works · Prototipo</p>
+        {/* Logo */}
+        <div className="border-b border-sidebar-border px-5 py-4">
+          <img
+            src="/logo-menbrete.png"
+            alt="AdvWork-ERP"
+            className="h-12 w-auto object-contain"
+          />
         </div>
 
+        {/* Navegación filtrada por rol */}
         <nav className="flex-1 px-3 py-4">
-          {grupos.map((g) => (
+          {grupos_.map((g) => (
             <div key={g.titulo} className="mb-5">
               <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/50">
                 {g.titulo}
@@ -90,9 +115,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
+        {/* Selector de rol */}
         <div className="border-t border-sidebar-border px-4 py-4">
           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/50">
-            Rol simulado (RNF-02)
+            Rol activo (RNF-02)
           </p>
           <select
             value={rolActivo}
@@ -108,10 +134,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
+      {/* ── Contenido principal ──────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Barra de navegación móvil (solo ítems permitidos) */}
         <div className="flex items-center gap-3 overflow-x-auto border-b border-border bg-card px-4 py-3 lg:hidden">
           <span className="font-display text-sm font-bold">AdvWork-ERP</span>
-          {(grupos.flatMap((g) => [...g.items]) as { to: string; label: string }[]).map((it) => (
+          {todosItems.map((it) => (
             <Link
               key={it.to}
               to={it.to}
