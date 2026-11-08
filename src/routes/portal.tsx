@@ -70,9 +70,6 @@ function Portal() {
           fecha: hoy(),
           canal,
           metodoPago,
-        }).then((res) => {
-          if (res.ok) toast(`Confirmación enviada a ${res.destinatario}.`, { icon: "📧" });
-          
         });
       }
     } else toast.error(r.mensaje);

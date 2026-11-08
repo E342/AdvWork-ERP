@@ -9,6 +9,7 @@
 
 import type { Cliente, Factura, LineaItem } from "./erp-data";
 import { IVA, money, totales } from "./erp-data";
+import { LOGO_DTE } from "./logo-dte";
 
 const EMISOR = {
   nombre: "Adventure Works S.A. de C.V.",
@@ -118,11 +119,21 @@ export async function generarPdfDte(datos: DatosFactura): Promise<Blob> {
   };
 
   // ── Encabezado ────────────────────────────────────────────────────────────
-  rect(margen, y, anchoUtil, 14, azul);
+  const logoH = 14;
+  const logoW = 48; // ancho reservado para el logo en la esquina izquierda
+  rect(margen, y, anchoUtil, logoH, azul);
+  // Logo de Adventure Works (esquina superior izquierda, fondo azul)
+  try {
+    doc.addImage(LOGO_DTE, "PNG", margen + 2, y + 1, logoW, logoH - 2);
+  } catch {
+    // Si el logo no carga, el encabezado azul sigue igual
+  }
+  // Texto centrado en el espacio restante (a la derecha del logo)
+  const textoX = margen + logoW + (anchoUtil - logoW) / 2;
   setFont(11, "bold", blanco);
-  doc.text("DOCUMENTO TRIBUTARIO ELECTRÓNICO", W / 2, y + 5.5, { align: "center" });
+  doc.text("DOCUMENTO TRIBUTARIO ELECTRÓNICO", textoX, y + 5.5, { align: "center" });
   setFont(10, "bold", blanco);
-  doc.text(tituloDocumento(tipoDte), W / 2, y + 11, { align: "center" });
+  doc.text(tituloDocumento(tipoDte), textoX, y + 11, { align: "center" });
   y += 16;
 
   // ── Fila de metadatos (3 columnas: izq | QR | der) ───────────────────────
@@ -176,54 +187,68 @@ export async function generarPdfDte(datos: DatosFactura): Promise<Blob> {
   // ── Emisor / Receptor ─────────────────────────────────────────────────────
   const mitad = (anchoUtil - 2) / 2;
   // Calcula altura según cuántos campos hay
-  const camposEmisor = ["Nombre o razón social", "NIT", "NRC", "Actividad económica", "Dirección", "Número de teléfono", "Correo electrónico", "Tipo de establecimiento"];
-  const camposReceptorBase = ["Nombre o razón social", "Documento", "Dirección", "Teléfono", "Correo electrónico"];
-  const camposReceptor = tipoDte === "03" ? ["Nombre o razón social", "Documento", "NRC", "Dirección", "Teléfono", "Correo electrónico"] : camposReceptorBase;
-  const filaAltura = 5; // mm por campo
+  // Cada campo ocupa DOS líneas: etiqueta en negrita (arriba) + valor normal (abajo).
+  // Esto evita cualquier sobreposición porque no dependemos de medir anchos de texto.
+  const filaAltura = 9; // mm por campo (suficiente para 2 líneas)
   const cabH = 6;
-  const bloqueH = cabH + Math.max(camposEmisor.length, camposReceptor.length) * filaAltura + 4;
+
+  const camposEmisor: [string, string][] = [
+    ["Nombre o razón social", EMISOR.nombre],
+    ["NIT", EMISOR.nit],
+    ["NRC", EMISOR.nrc],
+    ["Actividad económica", EMISOR.actividad],
+    ["Dirección", EMISOR.direccion],
+    ["Número de teléfono", EMISOR.telefono],
+    ["Correo electrónico", EMISOR.correo],
+    ["Tipo de establecimiento", EMISOR.establecimiento],
+  ];
+
+  const camposReceptor: [string, string][] = tipoDte === "03"
+    ? [
+        ["Nombre o razón social", cliente.nombre],
+        ["Documento", cliente.documento],
+        ["NRC", "N/A"],
+        ["Dirección", cliente.direccion],
+        ["Teléfono", cliente.telefono],
+        ["Correo electrónico", cliente.correo],
+      ]
+    : [
+        ["Nombre o razón social", cliente.nombre],
+        ["Documento", cliente.documento],
+        ["Dirección", cliente.direccion],
+        ["Teléfono", cliente.telefono],
+        ["Correo electrónico", cliente.correo],
+      ];
+
+  const nFilas = Math.max(camposEmisor.length, camposReceptor.length);
+  const bloqueH = cabH + nFilas * filaAltura + 4;
 
   rect(margen, y, mitad, bloqueH, grisClaro, grisBorde);
   rect(margen + mitad + 2, y, mitad, bloqueH, grisClaro, grisBorde);
-
   rect(margen, y, mitad, cabH, azul);
   rect(margen + mitad + 2, y, mitad, cabH, azul);
   setFont(7.5, "bold", blanco);
   doc.text("EMISOR", margen + mitad / 2, y + 4.3, { align: "center" });
   doc.text("RECEPTOR", margen + mitad + 2 + mitad / 2, y + 4.3, { align: "center" });
-  y += cabH + 1;
+  y += cabH + 2;
 
-  // Helper mejorado: etiqueta en negrita + valor en normal, con ancho controlado
-  const campo = (label: string, valor: string, colX: number, yy: number, maxValW: number) => {
-    setFont(5.8, "bold");
+  // Renderiza etiqueta y valor en líneas separadas dentro del bloque
+  const campo2L = (label: string, valor: string, colX: number, yy: number, maxW: number) => {
+    setFont(5.5, "bold");
     doc.text(`${label}:`, colX, yy);
-    setFont(5.8, "normal");
-    const labelW = doc.getTextWidth(`${label}: `);
-    const valX = colX + labelW;
-    const availW = maxValW - labelW;
-    // Truncar si el valor no cabe en una línea
-    let val = valor;
-    while (val.length > 3 && doc.getTextWidth(val) > availW) {
-      val = val.slice(0, -4) + "…";
-    }
-    doc.text(val, valX, yy);
+    setFont(6, "normal");
+    // Partir el valor si no cabe en el ancho disponible
+    const lines = doc.splitTextToSize(valor, maxW - 2);
+    doc.text(lines[0] ?? valor, colX, yy + 4);
   };
 
-  const emisorVals = [
-    EMISOR.nombre, EMISOR.nit, EMISOR.nrc, EMISOR.actividad,
-    EMISOR.direccion, EMISOR.telefono, EMISOR.correo, EMISOR.establecimiento,
-  ];
-  const receptorVals = tipoDte === "03"
-    ? [cliente.nombre, cliente.documento, "N/A", cliente.direccion, cliente.telefono, cliente.correo]
-    : [cliente.nombre, cliente.documento, cliente.direccion, cliente.telefono, cliente.correo];
+  const maxW = mitad - 6;
+  camposEmisor.forEach(([lbl, val], i) =>
+    campo2L(lbl, val, margen + 3, y + i * filaAltura, maxW));
+  camposReceptor.forEach(([lbl, val], i) =>
+    campo2L(lbl, val, margen + mitad + 5, y + i * filaAltura, maxW));
 
-  const maxW = mitad - 4;
-  camposEmisor.forEach((lbl, i) =>
-    campo(lbl, emisorVals[i] ?? "", margen + 2, y + i * filaAltura, maxW));
-  camposReceptor.forEach((lbl, i) =>
-    campo(lbl, receptorVals[i] ?? "", margen + mitad + 4, y + i * filaAltura, maxW));
-
-  y += Math.max(camposEmisor.length, camposReceptor.length) * filaAltura + 3;
+  y += nFilas * filaAltura + 3;
 
   // ── Tabla de ítems ────────────────────────────────────────────────────────
   y += 2;

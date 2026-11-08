@@ -14,7 +14,6 @@ export function PageHeader({
     <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
       <div className="max-w-2xl">
         <h1 className="text-2xl font-bold text-foreground">{titulo}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{descripcion}</p>
       </div>
       {acciones ? <div className="flex flex-wrap gap-2">{acciones}</div> : null}
     </header>

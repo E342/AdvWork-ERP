@@ -1196,7 +1196,7 @@ Cuerpo enviado (resumen):
   "ok": true,
   "resultado": "aceptado",
   "facturaEstado": "Emitida",
-  "mensaje": "La factura ya fue emitida; se devuelve el resultado registrado, sin reenviar.",
+  "mensaje": "La factura ya fue emitida.",
   "codigoMsg": "001",
   "clasificaMsg": "10",
   "descripcionMsg": "RECIBIDO",

@@ -31,6 +31,8 @@ export async function enviarCorreoDte(cuerpo: {
   codigoGeneracion: string;
   sello: string;
   fechaHora: string;
+  canal?: string;
+  metodoPago?: string;
 }): Promise<ResultadoCorreo> {
   const r = await fetch("/api/erp/correo/dte", {
     method: "POST",

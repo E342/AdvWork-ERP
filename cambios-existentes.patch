@@ -1,46 +1,26 @@
-diff --git a/package.json b/package.json
-index 5a7b7f8..46a4ccd 100644
---- a/package.json
-+++ b/package.json
-@@ -47,6 +47,7 @@
-     "@tanstack/react-router": "1.170.41",
-     "@tanstack/react-start": "1.168.60",
-     "@tanstack/router-plugin": "1.168.42",
-+    "@types/qrcode": "^1.5.6",
-     "ajv8": "npm:ajv@^8.20.0",
-     "class-variance-authority": "^0.7.1",
-     "clsx": "^2.1.1",
-@@ -54,13 +55,16 @@
-     "date-fns": "^4.1.0",
-     "embla-carousel-react": "^8.6.0",
-     "input-otp": "^1.4.2",
-+    "jspdf": "^4.2.1",
-     "lucide-react": "^0.575.0",
-+    "qrcode": "^1.5.4",
-     "react": "^19.2.0",
-     "react-day-picker": "^9.14.0",
-     "react-dom": "^19.2.0",
-     "react-hook-form": "^7.71.2",
-     "react-resizable-panels": "^4.6.5",
-     "recharts": "^2.15.4",
-+    "resend": "^6.37.0",
-     "sonner": "^2.0.7",
-     "tailwind-merge": "^3.5.0",
-     "tailwindcss": "^4.2.1",
 diff --git a/src/components/erp/AppShell.tsx b/src/components/erp/AppShell.tsx
-index ef0dc12..5a0977f 100644
+index ef0dc12..f65b89b 100644
 --- a/src/components/erp/AppShell.tsx
 +++ b/src/components/erp/AppShell.tsx
 @@ -1,7 +1,7 @@
- import { Link } from "@tanstack/react-router";
+-import { Link } from "@tanstack/react-router";
++import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
  import type { ReactNode } from "react";
++import { useEffect } from "react";
  import {
 -  BarChart3,
-+
    Boxes,
    FileSpreadsheet,
    FileText,
-@@ -45,7 +45,6 @@ const grupos = [
+@@ -15,6 +15,7 @@ import {
+ } from "lucide-react";
+ import { ROLES } from "@/lib/erp-data";
+ import { useErp } from "@/lib/erp-store";
++import { itemsPermitidos, puedeAcceder, RUTA_INICIO } from "@/lib/rbac";
+ 
+ const grupos = [
+   {
+@@ -45,7 +46,6 @@ const grupos = [
      titulo: "Administración",
      items: [
        { to: "/admin/usuarios", label: "Usuarios y permisos", icon: UsersRound },
@@ -48,11 +28,89 @@ index ef0dc12..5a0977f 100644
      ],
    },
    {
+@@ -54,21 +54,45 @@ const grupos = [
+   },
+ ] as const;
+ 
++/** Filtra los grupos del menú según el rol activo, eliminando grupos vacíos. */
++function gruposFiltrados(rol: (typeof ROLES)[number]) {
++  return grupos
++    .map((g) => ({ ...g, items: itemsPermitidos(rol, [...g.items]) }))
++    .filter((g) => g.items.length > 0);
++}
++
+ export function AppShell({ children }: { children: ReactNode }) {
+   const { rolActivo, setRolActivo } = useErp();
++  const navigate = useNavigate();
++  const rutaActual = useRouterState({ select: (s) => s.location.pathname });
++
++  // Redirige si el rol activo no tiene permiso para la ruta actual
++  useEffect(() => {
++    if (!puedeAcceder(rolActivo, rutaActual)) {
++      void navigate({ to: RUTA_INICIO[rolActivo] });
++    }
++  }, [rolActivo, rutaActual, navigate]);
++
++  const grupos_ = gruposFiltrados(rolActivo);
++  // Todos los ítems visibles (para la barra móvil)
++  const todosItems = grupos_.flatMap((g) => [...g.items]);
+ 
+   return (
+     <div className="flex min-h-screen bg-background">
++      {/* ── Sidebar escritorio ───────────────────────────────────────────── */}
+       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto bg-sidebar text-sidebar-foreground lg:flex">
+-        <div className="border-b border-sidebar-border px-5 py-5">
+-          <p className="font-display text-lg font-bold tracking-tight text-sidebar-accent-foreground">
+-            AdvWork<span className="text-sidebar-primary">-ERP</span>
+-          </p>
+-          <p className="mt-0.5 text-[11px] text-sidebar-foreground/70">Adventure Works · Prototipo</p>
++        {/* Logo */}
++        <div className="border-b border-sidebar-border px-5 py-4">
++          <img
++            src="/logo-menbrete.png"
++            alt="AdvWork-ERP"
++            className="h-12 w-auto object-contain"
++          />
+         </div>
+ 
++        {/* Navegación filtrada por rol */}
+         <nav className="flex-1 px-3 py-4">
+-          {grupos.map((g) => (
++          {grupos_.map((g) => (
+             <div key={g.titulo} className="mb-5">
+               <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/50">
+                 {g.titulo}
+@@ -91,9 +115,10 @@ export function AppShell({ children }: { children: ReactNode }) {
+           ))}
+         </nav>
+ 
++        {/* Selector de rol */}
+         <div className="border-t border-sidebar-border px-4 py-4">
+           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/50">
+-            Rol simulado (RNF-02)
++            Rol activo (RNF-02)
+           </p>
+           <select
+             value={rolActivo}
+@@ -109,10 +134,12 @@ export function AppShell({ children }: { children: ReactNode }) {
+         </div>
+       </aside>
+ 
++      {/* ── Contenido principal ──────────────────────────────────────────── */}
+       <div className="flex min-w-0 flex-1 flex-col">
++        {/* Barra de navegación móvil (solo ítems permitidos) */}
+         <div className="flex items-center gap-3 overflow-x-auto border-b border-border bg-card px-4 py-3 lg:hidden">
+           <span className="font-display text-sm font-bold">AdvWork-ERP</span>
+-          {(grupos.flatMap((g) => [...g.items]) as { to: string; label: string }[]).map((it) => (
++          {todosItems.map((it) => (
+             <Link
+               key={it.to}
+               to={it.to}
 diff --git a/src/components/erp/ui.tsx b/src/components/erp/ui.tsx
-index 5cae338..397ff20 100644
+index 5cae338..b9c5dfe 100644
 --- a/src/components/erp/ui.tsx
 +++ b/src/components/erp/ui.tsx
-@@ -4,29 +4,15 @@ import { cn } from "@/lib/utils";
+@@ -4,31 +4,16 @@ import { cn } from "@/lib/utils";
  export function PageHeader({
    titulo,
    descripcion,
@@ -80,10 +138,39 @@ index 5cae338..397ff20 100644
 -          </div>
 -        ) : null}
          <h1 className="text-2xl font-bold text-foreground">{titulo}</h1>
-         <p className="mt-1 text-sm text-muted-foreground">{descripcion}</p>
+-        <p className="mt-1 text-sm text-muted-foreground">{descripcion}</p>
        </div>
+       {acciones ? <div className="flex flex-wrap gap-2">{acciones}</div> : null}
+     </header>
+diff --git a/src/routes/__root.tsx b/src/routes/__root.tsx
+index 695a0ea..494670d 100644
+--- a/src/routes/__root.tsx
++++ b/src/routes/__root.tsx
+@@ -22,7 +22,7 @@ function NotFoundComponent() {
+         <h1 className="text-7xl font-bold text-foreground">404</h1>
+         <h2 className="mt-4 text-xl font-semibold text-foreground">Página no encontrada</h2>
+         <p className="mt-2 text-sm text-muted-foreground">
+-          La pantalla que buscas no existe dentro del prototipo AdvWork-ERP.
++          La pantalla que buscas no existe en AdvWork-ERP.
+         </p>
+         <div className="mt-6">
+           <Link
+@@ -80,11 +80,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
+     meta: [
+       { charSet: "utf-8" },
+       { name: "viewport", content: "width=device-width, initial-scale=1" },
+-      { title: "AdvWork-ERP — Prototipo Adventure Works" },
++      { title: "AdvWork-ERP — Adventure Works" },
+       {
+         name: "description",
+         content:
+-          "Prototipo del sistema de ventas, facturación electrónica e inventarios AdvWork-ERP para Adventure Works.",
++          "Sistema de ventas, facturación electrónica e inventarios AdvWork-ERP para Adventure Works.",
+       },
+       { property: "og:type", content: "website" },
+       { name: "twitter:card", content: "summary_large_image" },
 diff --git a/src/routes/facturacion.index.tsx b/src/routes/facturacion.index.tsx
-index d30049d..fe79b45 100644
+index d30049d..a31b78b 100644
 --- a/src/routes/facturacion.index.tsx
 +++ b/src/routes/facturacion.index.tsx
 @@ -1,10 +1,12 @@
@@ -100,7 +187,15 @@ index d30049d..fe79b45 100644
  import {
    Campo,
    Estado,
-@@ -86,6 +88,8 @@ function Facturacion() {
+@@ -77,6 +79,7 @@ const tonoResultado = (r: string | null) =>
+ function Facturacion() {
+   const {
+     facturas,
++    pedidos,
+     clientePorId,
+     enviandoIds,
+     enviarFacturaHacienda,
+@@ -86,6 +89,8 @@ function Facturacion() {
    const [q, setQ] = useState("");
    const [fecha, setFecha] = useState("");
    const [abierta, setAbierta] = useState<string | null>(null);
@@ -109,7 +204,7 @@ index d30049d..fe79b45 100644
  
    const lista = facturas
      .filter((f) =>
-@@ -105,39 +109,79 @@ function Facturacion() {
+@@ -105,39 +110,82 @@ function Facturacion() {
  
    const consultar = async (id: string) => avisar(await consultarEstadoFactura(id));
  
@@ -163,6 +258,7 @@ index d30049d..fe79b45 100644
 +      toast.error("La factura debe estar Emitida antes de enviar el correo.");
 +      return;
 +    }
++    const ped = pedidos.find((p) => p.id === f.pedidoId);
 +    setEnviandoCorreo(id);
 +    try {
 +      const r = await enviarCorreoDte({
@@ -173,9 +269,11 @@ index d30049d..fe79b45 100644
 +        codigoGeneracion: f.codigoGeneracion ?? "",
 +        sello: f.selloElectronico,
 +        fechaHora: f.fhProcesamiento ?? new Date().toLocaleString("es-SV"),
++        canal: ped?.canal ?? "Tienda física",
++        metodoPago: ped?.metodoPago ?? "Efectivo",
 +      });
 +      if (r.ok) {
-+        toast.success(`Correo enviado a ${r.destinatario}.`);
++        toast.success("Correo enviado.");
 +      } else if (r.preview) {
 +        toast("Correo enviado.", { icon: "📧" });
 +      } else {
@@ -211,7 +309,7 @@ index d30049d..fe79b45 100644
        <Panel titulo="Historial de facturas">
          <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[2fr_1fr]">
            <Campo label="Buscar por folio, documento o cliente">
-@@ -218,10 +262,23 @@ function Facturacion() {
+@@ -218,10 +266,23 @@ function Facturacion() {
                          )}
                        </button>
                        <button
@@ -237,7 +335,7 @@ index d30049d..fe79b45 100644
                        </button>
                        <button
                          onClick={() => setAbierta(abierta === f.id ? null : f.id)}
-@@ -334,11 +391,8 @@ function DetalleFactura({
+@@ -334,11 +395,8 @@ function DetalleFactura({
        </div>
  
        <div className="border-t border-border pt-3">
@@ -250,8 +348,36 @@ index d30049d..fe79b45 100644
          </div>
  
          {hayResultado ? (
+diff --git a/src/routes/index.tsx b/src/routes/index.tsx
+index dca1668..5382013 100644
+--- a/src/routes/index.tsx
++++ b/src/routes/index.tsx
+@@ -20,7 +20,7 @@ export const Route = createFileRoute("/")({
+       {
+         name: "description",
+         content:
+-          "Indicadores en tiempo real de ventas, facturación electrónica e inventarios del prototipo AdvWork-ERP.",
++          "Indicadores en tiempo real de ventas, facturación electrónica e inventarios de AdvWork-ERP.",
+       },
+       { property: "og:title", content: "Panel de control — AdvWork-ERP" },
+       {
+@@ -51,12 +51,12 @@ function Panel_() {
+   return (
+     <>
+       <header className="mb-6 border-b border-border pb-5">
+-        <p className="label-caps">Adventure Works · Prototipo académico</p>
++        <p className="label-caps">Adventure Works</p>
+         <h1 className="mt-1 text-2xl font-bold">Panel de control operativo</h1>
+         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+           Vista consolidada de los cuatro módulos del ERS: Ventas, Facturación Electrónica,
+           Inventarios y Administración. Los datos son simulados y se recalculan en tiempo real
+-          conforme operas el prototipo.
++          conforme operas el sistema.
+         </p>
+       </header>
+ 
 diff --git a/src/routes/portal.tsx b/src/routes/portal.tsx
-index d08772b..84af569 100644
+index d08772b..ed87358 100644
 --- a/src/routes/portal.tsx
 +++ b/src/routes/portal.tsx
 @@ -3,8 +3,9 @@ import { useState } from "react";
@@ -265,7 +391,7 @@ index d08772b..84af569 100644
  
  export const Route = createFileRoute("/portal")({
    head: () => ({
-@@ -52,10 +53,28 @@ function Portal() {
+@@ -52,10 +53,25 @@ function Portal() {
    };
  
    const pagar = () => {
@@ -286,15 +412,12 @@ index d08772b..84af569 100644
 +          fecha: hoy(),
 +          canal,
 +          metodoPago,
-+        }).then((res) => {
-+          if (res.ok) toast(`Confirmación enviada a ${res.destinatario}.`, { icon: "📧" });
-+          
 +        });
 +      }
      } else toast.error(r.mensaje);
    };
  
-@@ -86,7 +105,6 @@ function Portal() {
+@@ -86,7 +102,6 @@ function Portal() {
    return (
      <>
        <PageHeader

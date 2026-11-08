@@ -79,6 +79,7 @@ const tonoResultado = (r: string | null) =>
 function Facturacion() {
   const {
     facturas,
+    pedidos,
     clientePorId,
     enviandoIds,
     enviarFacturaHacienda,
@@ -138,6 +139,7 @@ function Facturacion() {
       toast.error("La factura debe estar Emitida antes de enviar el correo.");
       return;
     }
+    const ped = pedidos.find((p) => p.id === f.pedidoId);
     setEnviandoCorreo(id);
     try {
       const r = await enviarCorreoDte({
@@ -148,9 +150,11 @@ function Facturacion() {
         codigoGeneracion: f.codigoGeneracion ?? "",
         sello: f.selloElectronico,
         fechaHora: f.fhProcesamiento ?? new Date().toLocaleString("es-SV"),
+        canal: ped?.canal ?? "Tienda física",
+        metodoPago: ped?.metodoPago ?? "Efectivo",
       });
       if (r.ok) {
-        toast.success(`Correo enviado a ${r.destinatario}.`);
+        toast.success("Correo enviado.");
       } else if (r.preview) {
         toast("Correo enviado.", { icon: "📧" });
       } else {

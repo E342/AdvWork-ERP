@@ -20,7 +20,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Indicadores en tiempo real de ventas, facturación electrónica e inventarios del prototipo AdvWork-ERP.",
+          "Indicadores en tiempo real de ventas, facturación electrónica e inventarios de AdvWork-ERP.",
       },
       { property: "og:title", content: "Panel de control — AdvWork-ERP" },
       {
@@ -51,12 +51,12 @@ function Panel_() {
   return (
     <>
       <header className="mb-6 border-b border-border pb-5">
-        <p className="label-caps">Adventure Works · Prototipo académico</p>
+        <p className="label-caps">Adventure Works</p>
         <h1 className="mt-1 text-2xl font-bold">Panel de control operativo</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           Vista consolidada de los cuatro módulos del ERS: Ventas, Facturación Electrónica,
           Inventarios y Administración. Los datos son simulados y se recalculan en tiempo real
-          conforme operas el prototipo.
+          conforme operas el sistema.
         </p>
       </header>
 
