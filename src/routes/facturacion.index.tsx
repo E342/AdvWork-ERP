@@ -154,7 +154,7 @@ function Facturacion() {
         metodoPago: ped?.metodoPago ?? "Efectivo",
       });
       if (r.ok) {
-        toast.success(`Correo enviado a ${r.destinatario}.`);
+        toast.success("Correo enviado.");
       } else if (r.preview) {
         toast("Correo enviado.", { icon: "📧" });
       } else {

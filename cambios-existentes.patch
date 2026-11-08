@@ -170,7 +170,7 @@ index 695a0ea..494670d 100644
        { property: "og:type", content: "website" },
        { name: "twitter:card", content: "summary_large_image" },
 diff --git a/src/routes/facturacion.index.tsx b/src/routes/facturacion.index.tsx
-index d30049d..b89e473 100644
+index d30049d..a31b78b 100644
 --- a/src/routes/facturacion.index.tsx
 +++ b/src/routes/facturacion.index.tsx
 @@ -1,10 +1,12 @@
@@ -273,7 +273,7 @@ index d30049d..b89e473 100644
 +        metodoPago: ped?.metodoPago ?? "Efectivo",
 +      });
 +      if (r.ok) {
-+        toast.success(`Correo enviado a ${r.destinatario}.`);
++        toast.success("Correo enviado.");
 +      } else if (r.preview) {
 +        toast("Correo enviado.", { icon: "📧" });
 +      } else {
@@ -377,7 +377,7 @@ index dca1668..5382013 100644
        </header>
  
 diff --git a/src/routes/portal.tsx b/src/routes/portal.tsx
-index d08772b..84af569 100644
+index d08772b..ed87358 100644
 --- a/src/routes/portal.tsx
 +++ b/src/routes/portal.tsx
 @@ -3,8 +3,9 @@ import { useState } from "react";
@@ -391,7 +391,7 @@ index d08772b..84af569 100644
  
  export const Route = createFileRoute("/portal")({
    head: () => ({
-@@ -52,10 +53,28 @@ function Portal() {
+@@ -52,10 +53,25 @@ function Portal() {
    };
  
    const pagar = () => {
@@ -412,15 +412,12 @@ index d08772b..84af569 100644
 +          fecha: hoy(),
 +          canal,
 +          metodoPago,
-+        }).then((res) => {
-+          if (res.ok) toast(`Confirmación enviada a ${res.destinatario}.`, { icon: "📧" });
-+          
 +        });
 +      }
      } else toast.error(r.mensaje);
    };
  
-@@ -86,7 +105,6 @@ function Portal() {
+@@ -86,7 +102,6 @@ function Portal() {
    return (
      <>
        <PageHeader
