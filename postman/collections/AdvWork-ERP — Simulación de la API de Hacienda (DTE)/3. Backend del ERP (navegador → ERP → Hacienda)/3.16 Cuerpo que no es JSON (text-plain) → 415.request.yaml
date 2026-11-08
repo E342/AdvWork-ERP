@@ -1,0 +1,35 @@
+$kind: http-request
+name: 3.16 Cuerpo que no es JSON (text/plain) → 415
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Comprobar que el ERP exige `application/json` (un formulario de otro sitio solo puede enviar `text/plain`).
+
+  **Datos de entrada:** Factura válida enviada con `Content-Type: text/plain`.
+
+  **Resultado esperado:** HTTP 415, `error: tipo_contenido_invalido`.
+
+  **Criterio de éxito:** Código 415 y `error` igual a `tipo_contenido_invalido`.
+url: "{{base_url}}/api/erp/dte/transmitir"
+method: POST
+headers:
+  Content-Type: text/plain
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const cuerpo = H.facturaErp(pm, {});
+      pm.request.body.update(JSON.stringify(cuerpo));
+      pm.collectionVariables.set("erp_texto", JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 415", function () { pm.response.to.have.status(415); });
+      const j = pm.response.json();
+      pm.test("ok = false", function () { pm.expect(j.ok).to.eql(false); });
+      pm.test("error = tipo_contenido_invalido", function () { pm.expect(j.error).to.eql("tipo_contenido_invalido"); });
+    language: text/javascript
+order: 25000

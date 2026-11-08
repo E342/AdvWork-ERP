@@ -1,0 +1,26 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Comprobar que la recepción exige autenticación.
+
+  **Datos de entrada:** POST sin encabezado `Authorization`.
+
+  **Resultado esperado:** HTTP 401, mensaje `Token no proporcionado`.
+
+  **Criterio de éxito:** Código 401 y el mensaje indicado.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 401", function () { pm.response.to.have.status(401); });
+      const j = pm.response.json();
+      pm.test("mensaje: Token no proporcionado", function () { pm.expect(j.message).to.eql("Token no proporcionado"); });
+    language: text/javascript
+order: 1000

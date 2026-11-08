@@ -1,0 +1,25 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar la respuesta ante una factura sin ninguna transmisión registrada.
+
+  **Datos de entrada:** `{ facturaId: "FAC-NO-EXISTE" }`.
+
+  **Resultado esperado:** HTTP 404 con `motivo: desconocida`.
+
+  **Criterio de éxito:** Código 404 y `motivo` igual a `desconocida`.
+url: "{{base_url}}/api/erp/dte/consultar"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: '{"facturaId":"FAC-NO-EXISTE"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 404", function () { pm.response.to.have.status(404); });
+      pm.test("motivo = desconocida", function () { pm.expect(pm.response.json().motivo).to.eql("desconocida"); });
+    language: text/javascript
+order: 20000

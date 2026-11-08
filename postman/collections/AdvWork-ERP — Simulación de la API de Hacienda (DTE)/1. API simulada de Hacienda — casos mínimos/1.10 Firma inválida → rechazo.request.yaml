@@ -1,0 +1,37 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar que un documento firmado con otra clave (firma que no se puede verificar) es rechazado.
+
+  **Datos de entrada:** DTE válido firmado con una clave distinta a la configurada.
+
+  **Resultado esperado:** HTTP 400, `estado: RECHAZADO`, `codigoMsg: 003` (VALOR NO VALIDO), `clasificaMsg: 20` (firma electrónica), mensaje con `[firma]`.
+
+  **Criterio de éxito:** Código 400, código 003, clasificación 20 y `[firma]` en el mensaje.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const dte = H.dteValido(pm);
+      const cuerpo = H.peticion(pm, dte, { documento: H.firmar(dte, "otra-clave-incorrecta") });
+      pm.request.body.update(JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 400", function () { pm.response.to.have.status(400); });
+      const j = pm.response.json();
+      pm.test("estado = RECHAZADO", function () { pm.expect(j.estado).to.eql("RECHAZADO"); });
+      pm.test("codigoMsg = 003", function () { pm.expect(j.codigoMsg).to.eql("003"); });
+      pm.test("clasificaMsg = 20", function () { pm.expect(j.clasificaMsg).to.eql("20"); });
+      pm.test("el mensaje menciona \"[firma]\"", function () { pm.expect(JSON.stringify(j)).to.include("[firma]"); });
+    language: text/javascript
+order: 10000

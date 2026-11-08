@@ -1,0 +1,21 @@
+$kind: http-request
+name: "3.8a Escenario: timeout_procesado"
+description: |-
+  **Tipo:** preparación
+
+  Pone la simulación en modo `timeout_procesado`. Hacienda recibirá el documento pero responderá demasiado tarde.
+url: "{{base_url}}/api/hacienda-sim/control/escenario"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: '{"modo":"timeout_procesado"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      pm.test("modo = timeout_procesado", function () { pm.expect(pm.response.json().modo).to.eql("timeout_procesado"); });
+    language: text/javascript
+order: 11000

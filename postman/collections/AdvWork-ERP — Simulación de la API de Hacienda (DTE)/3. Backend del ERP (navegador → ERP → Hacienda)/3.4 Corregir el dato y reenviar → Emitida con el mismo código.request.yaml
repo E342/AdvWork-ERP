@@ -1,0 +1,36 @@
+$kind: http-request
+name: 3.4 Corregir el dato y reenviar → Emitida con el mismo código de generación
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar que tras un rechazo se puede corregir el dato y reenviar, conservando el `codigoGeneracion` de la factura.
+
+  **Datos de entrada:** La misma factura del caso 3.3 con el documento del cliente corregido a `04512398-7`.
+
+  **Resultado esperado:** HTTP 200, `resultado: aceptado`, `facturaEstado: Emitida` y el MISMO `codigoGeneracion` del caso 3.3.
+
+  **Criterio de éxito:** Código 200, estado Emitida y `codigoGeneracion` igual al de 3.3.
+url: "{{base_url}}/api/erp/dte/transmitir"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const cuerpo = JSON.parse(pm.collectionVariables.get("erp_rechazo"));
+      cuerpo.cliente.documento = "04512398-7";
+      pm.request.body.update(JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test("ok = true", function () { pm.expect(j.ok).to.eql(true); });
+      pm.test("resultado = aceptado", function () { pm.expect(j.resultado).to.eql("aceptado"); });
+      pm.test("facturaEstado = Emitida", function () { pm.expect(j.facturaEstado).to.eql("Emitida"); });
+      pm.test("conserva el codigoGeneracion del caso 3.3", function () { pm.expect(j.codigoGeneracion).to.eql(pm.collectionVariables.get("cg_erp_rechazo")); });
+    language: text/javascript
+order: 4000

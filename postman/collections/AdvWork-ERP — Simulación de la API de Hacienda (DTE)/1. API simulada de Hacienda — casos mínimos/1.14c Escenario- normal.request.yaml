@@ -1,0 +1,21 @@
+$kind: http-request
+name: "1.14c Escenario: normal"
+description: |-
+  **Tipo:** preparación
+
+  Pone la simulación en modo `normal`. Restablece el servicio.
+url: "{{base_url}}/api/hacienda-sim/control/escenario"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: '{"modo":"normal"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      pm.test("modo = normal", function () { pm.expect(pm.response.json().modo).to.eql("normal"); });
+    language: text/javascript
+order: 19000

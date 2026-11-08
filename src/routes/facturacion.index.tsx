@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Download, Loader2, RefreshCw, Send } from "lucide-react";
+import { Download, Loader2, Mail, RefreshCw, Send } from "lucide-react";
 import { useErp } from "@/lib/erp-store";
 import { money, totales, type Factura } from "@/lib/erp-data";
 import { detalleTransmision, listarTransmisiones, type ResumenTransmision } from "@/lib/dte-api";
+import { descargarPdf, generarPdfDte } from "@/lib/pdf-dte";
+import { enviarCorreoDte } from "@/lib/correo-api";
 import {
   Campo,
   Estado,
@@ -86,6 +88,8 @@ function Facturacion() {
   const [q, setQ] = useState("");
   const [fecha, setFecha] = useState("");
   const [abierta, setAbierta] = useState<string | null>(null);
+  const [tipoDte, setTipoDte] = useState<"01" | "03">("01");
+  const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
 
   const lista = facturas
     .filter((f) =>
@@ -105,38 +109,78 @@ function Facturacion() {
 
   const consultar = async (id: string) => avisar(await consultarEstadoFactura(id));
 
-  const descargar = (id: string) => {
+  const descargar = async (id: string) => {
     const f = facturas.find((x) => x.id === id)!;
     const cli = clientePorId(f.clienteId)!;
-    const t = totales(f.items);
-    const texto = [
-      "DOCUMENTO TRIBUTARIO ELECTRÓNICO (simulado)",
-      `Serie/Folio: ${f.serie}-${f.folio}`,
-      ...(f.numeroControl ? [`Número de control: ${f.numeroControl}`] : []),
-      ...(f.codigoGeneracion ? [`Código de generación: ${f.codigoGeneracion}`] : []),
-      `Fecha: ${f.fecha}`,
-      `Receptor: ${cli.nombre} — ${cli.documento}`,
-      "",
-      ...f.items.map((i) => `${i.cantidad} x ${i.nombre} @ ${money(i.precio)}`),
-      "",
-      `Subtotal: ${money(t.subtotal)}`,
-      `IVA 13%: ${money(t.impuesto)}`,
-      `Total: ${money(t.total)}`,
-      ...(f.totalDte !== undefined ? [`Total según el DTE: ${money(f.totalDte)}`] : []),
-      `Sello electrónico: ${f.selloElectronico ?? "PENDIENTE"}`,
-      ...(f.fhProcesamiento ? [`Procesado: ${f.fhProcesamiento}`] : []),
-    ].join("\n");
-    guardarArchivo(texto, `${f.serie}-${f.folio}.txt`, "text/plain");
-    toast.success("Comprobante descargado (simulación del PDF/XML).");
+    try {
+      const blob = await generarPdfDte({
+        factura: f,
+        cliente: cli,
+        tipoDte,
+        numeroControl: f.numeroControl ?? `DTE-01-M001P001-${"0".repeat(15)}`,
+        codigoGeneracion: f.codigoGeneracion ?? "00000000-0000-4000-8000-000000000000",
+        sello: f.selloElectronico ?? "PENDIENTE",
+        fechaHora: f.fhProcesamiento ?? new Date().toLocaleString("es-SV"),
+      });
+      const nombre = tipoDte === "01" ? `Factura-${f.serie}-${f.folio}.pdf` : `CCF-${f.serie}-${f.folio}.pdf`;
+      descargarPdf(blob, nombre);
+      toast.success(`${tipoDte === "01" ? "Factura" : "Crédito Fiscal"} descargado en PDF.`);
+    } catch (err) {
+      console.error(err);
+      toast.error("No se pudo generar el PDF. Revisa la consola.");
+    }
+  };
+
+  const enviarCorreoFactura = async (id: string) => {
+    const f = facturas.find((x) => x.id === id)!;
+    const cli = clientePorId(f.clienteId)!;
+    if (!f.selloElectronico) {
+      toast.error("La factura debe estar Emitida antes de enviar el correo.");
+      return;
+    }
+    setEnviandoCorreo(id);
+    try {
+      const r = await enviarCorreoDte({
+        factura: f,
+        cliente: cli,
+        tipoDte: tipoDte === "01" ? "Factura" : "Crédito Fiscal",
+        numeroControl: f.numeroControl ?? "",
+        codigoGeneracion: f.codigoGeneracion ?? "",
+        sello: f.selloElectronico,
+        fechaHora: f.fhProcesamiento ?? new Date().toLocaleString("es-SV"),
+      });
+      if (r.ok) {
+        toast.success(`Correo enviado a ${r.destinatario}.`);
+      } else if (r.preview) {
+        toast("Correo enviado.", { icon: "📧" });
+      } else {
+        toast.error(`Error al enviar correo: ${r.error}`);
+      }
+    } finally {
+      setEnviandoCorreo(null);
+    }
   };
 
   return (
     <>
       <PageHeader
-        hu={["HU-07", "HU-08", "HU-09", "HU-10"]}
         titulo="Facturación electrónica (DTE)"
         descripcion="Ciclo de vida completo del comprobante: borrador, envío a la Entidad Tributaria vía API REST/HTTPS, sellado o rechazo, y descarga del archivo."
       />
+
+      {/* Selector de tipo de DTE */}
+      <div className="mb-4 flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+        <span className="text-sm font-semibold text-foreground">Tipo de DTE:</span>
+        <label className="flex cursor-pointer items-center gap-1.5 text-sm">
+          <input type="radio" name="tipoDte" value="01" checked={tipoDte === "01"} onChange={() => setTipoDte("01")} className="accent-primary" />
+          Factura (01)
+        </label>
+        <label className="flex cursor-pointer items-center gap-1.5 text-sm">
+          <input type="radio" name="tipoDte" value="03" checked={tipoDte === "03"} onChange={() => setTipoDte("03")} className="accent-primary" />
+          Crédito Fiscal (03)
+        </label>
+        <span className="ml-auto text-xs text-muted-foreground">Aplica al PDF y al correo</span>
+      </div>
 
       <Panel titulo="Historial de facturas">
         <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[2fr_1fr]">
@@ -218,10 +262,23 @@ function Facturacion() {
                         )}
                       </button>
                       <button
-                        onClick={() => descargar(f.id)}
+                        onClick={() => void descargar(f.id)}
                         className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-accent-foreground"
                       >
-                        <Download className="size-3" /> Descargar
+                        <Download className="size-3" /> Descargar PDF
+                      </button>
+                      <button
+                        onClick={() => void enviarCorreoFactura(f.id)}
+                        disabled={f.estado !== "Emitida" || enviandoCorreo === f.id}
+                        className="inline-flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1.5 text-xs font-semibold text-secondary-foreground disabled:opacity-40"
+                        title={f.estado !== "Emitida" ? "Solo se puede enviar correo de facturas Emitidas" : `Enviar correo a ${clientePorId(f.clienteId)?.correo}`}
+                      >
+                        {enviandoCorreo === f.id ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Mail className="size-3" />
+                        )}{" "}
+                        Correo
                       </button>
                       <button
                         onClick={() => setAbierta(abierta === f.id ? null : f.id)}
@@ -334,11 +391,8 @@ function DetalleFactura({
       </div>
 
       <div className="border-t border-border pt-3">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-2">
           <p className="label-caps">Resultado del envío</p>
-          <span className="rounded bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-warning-foreground">
-            Servicio simulado — no es el servicio real de Hacienda
-          </span>
         </div>
 
         {hayResultado ? (

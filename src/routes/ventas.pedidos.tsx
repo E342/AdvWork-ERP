@@ -31,7 +31,6 @@ function Pedidos() {
   return (
     <>
       <PageHeader
-        hu={["HU-02", "HU-13", "HU-07"]}
         titulo="Pedidos oficiales"
         descripcion="Los pedidos heredan los datos de la cotización aprobada. Al confirmarlos, el sistema descuenta el inventario automáticamente y habilita la emisión del DTE."
       />

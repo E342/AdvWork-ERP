@@ -1,0 +1,32 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Comprobar que la consulta de estado devuelve el documento aceptado, con el sello original (no uno nuevo).
+
+  **Datos de entrada:** POST con `nitEmisor`, `tdte: 01` y el `codigoGeneracion` del caso 1.1.
+
+  **Resultado esperado:** HTTP 200, `estado: PROCESADO`, `codigoMsg: 001` y el MISMO `selloRecibido` del caso 1.1.
+
+  **Criterio de éxito:** Código 200 y `selloRecibido` idéntico al guardado en 1.1.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepcion/consultadte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: 'pm.request.body.update(JSON.stringify({ nitEmisor: pm.environment.get("nit_emisor"), tdte: "01", codigoGeneracion: pm.collectionVariables.get("cg_valido") }));'
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test("estado = PROCESADO", function () { pm.expect(j.estado).to.eql("PROCESADO"); });
+      pm.test("codigoMsg = 001", function () { pm.expect(j.codigoMsg).to.eql("001"); });
+      pm.test("el sello coincide con el del caso 1.1", function () { pm.expect(j.selloRecibido).to.eql(pm.collectionVariables.get("sello_valido")); });
+    language: text/javascript
+order: 3000

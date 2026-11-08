@@ -1,0 +1,37 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Regresión: un importe con centavos (que el validador rechazó por error en una versión anterior) debe aceptarse.
+
+  **Datos de entrada:** DTE de una sola línea por $1,234.56 con totales coherentes (IVA 13 % incluido).
+
+  **Resultado esperado:** HTTP 200, `estado: PROCESADO`, `codigoMsg: 001`.
+
+  **Criterio de éxito:** Código 200 y código 001.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const dte = H.dteValido(pm);
+      H.conImporte(dte, 1234.56);
+      const cuerpo = H.peticion(pm, dte, undefined);
+      pm.request.body.update(JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test("estado = PROCESADO", function () { pm.expect(j.estado).to.eql("PROCESADO"); });
+      pm.test("codigoMsg = 001", function () { pm.expect(j.codigoMsg).to.eql("001"); });
+      pm.test("clasificaMsg = 10", function () { pm.expect(j.clasificaMsg).to.eql("10"); });
+    language: text/javascript
+order: 12000

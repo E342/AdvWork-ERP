@@ -1,0 +1,21 @@
+$kind: http-request
+name: "1.14a Escenario: error_interno"
+description: |-
+  **Tipo:** preparación
+
+  Pone la simulación en modo `error_interno`. Simula un fallo interno del servicio.
+url: "{{base_url}}/api/hacienda-sim/control/escenario"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: '{"modo":"error_interno"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      pm.test("modo = error_interno", function () { pm.expect(pm.response.json().modo).to.eql("error_interno"); });
+    language: text/javascript
+order: 17000

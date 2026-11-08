@@ -1,0 +1,23 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Comprobar que el control de escenarios de falla está protegido.
+
+  **Datos de entrada:** PUT con `{"modo":"indisponible"}` y sin `Authorization`.
+
+  **Resultado esperado:** HTTP 401; el escenario NO cambia.
+
+  **Criterio de éxito:** Código 401.
+url: "{{base_url}}/api/hacienda-sim/control/escenario"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: '{"modo":"indisponible"}'
+scripts:
+  - type: afterResponse
+    code: pm.test("HTTP 401", function () { pm.response.to.have.status(401); });
+    language: text/javascript
+order: 4000

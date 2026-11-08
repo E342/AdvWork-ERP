@@ -67,7 +67,6 @@ function Cotizaciones() {
   return (
     <>
       <PageHeader
-        hu={["HU-01", "HU-02"]}
         titulo="Gestión de cotizaciones"
         descripcion="Registra cotizaciones con descuentos, cálculo automático de subtotal e IVA, y conviértelas en pedidos oficiales con reserva de stock."
       />

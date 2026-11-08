@@ -3,8 +3,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Download, Minus, Plus, ShoppingCart } from "lucide-react";
 import { useErp } from "@/lib/erp-store";
-import { money, totales, type LineaItem, type Pedido } from "@/lib/erp-data";
+import { hoy, money, totales, type LineaItem, type Pedido } from "@/lib/erp-data";
 import { Campo, Estado, inputCls, PageHeader, Panel, tonoEstado, Vacio } from "@/components/erp/ui";
+import { enviarCorreoConfirmacion } from "@/lib/correo-api";
 
 export const Route = createFileRoute("/portal")({
   head: () => ({
@@ -52,10 +53,28 @@ function Portal() {
   };
 
   const pagar = () => {
+    const cli = clientes.find((c) => c.id === clienteId);
     const r = registrarVentaDirecta(clienteId, carrito, canal, metodoPago);
     if (r.ok) {
       toast.success(r.mensaje);
+      // Extraer el id del pedido del mensaje ("Orden PED-XXXX generada…")
+      const matchPed = /PED-[A-Z0-9-]+/.exec(r.mensaje);
+      const pedidoId = matchPed?.[0] ?? "PED-NUEVO";
       setCarrito([]);
+      // Enviar confirmación por correo (no bloqueante)
+      if (cli) {
+        void enviarCorreoConfirmacion({
+          pedidoId,
+          cliente: cli,
+          items: carrito,
+          fecha: hoy(),
+          canal,
+          metodoPago,
+        }).then((res) => {
+          if (res.ok) toast(`Confirmación enviada a ${res.destinatario}.`, { icon: "📧" });
+          
+        });
+      }
     } else toast.error(r.mensaje);
   };
 
@@ -86,7 +105,6 @@ function Portal() {
   return (
     <>
       <PageHeader
-        hu={["HU-05", "HU-06"]}
         titulo="Portal del cliente"
         descripcion="Canal de autoservicio: arma tu pedido en línea o en tienda física, paga y consulta el historial de compras con descarga de comprobantes."
         acciones={

@@ -1,0 +1,15 @@
+# Use this workspace to collaborate
+workspace:
+  id: f76d7b6b-8aab-4eee-812c-44f6e0bad6bb
+
+# Each entry here maps a local resource to one or more corresponding objects in Postman Cloud
+
+cloudResources:
+  collections:
+    ../postman/collections/AdvWork-ERP — Simulación de la API de Hacienda (DTE): 6936f0e2-143f-49a7-9dca-5a22817c5c47
+
+# All resources in the `postman/` folder are automatically registered in Local View.
+# Point to additional files outside the `postman/` folder to register them individually. Example:
+#localResources:
+#  collections:
+#    - ../tests/E2E Test Collection/

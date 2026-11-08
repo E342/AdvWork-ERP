@@ -1,0 +1,35 @@
+$kind: http-request
+name: 3.7d Restablecido el servicio, reintentar la misma factura → Emitida
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar que una factura pendiente se emite al reintentar cuando el servicio vuelve, conservando su `codigoGeneracion`.
+
+  **Datos de entrada:** El mismo cuerpo exacto del caso 3.7b.
+
+  **Resultado esperado:** HTTP 200, `resultado: aceptado`, `facturaEstado: Emitida`, 1 envío y el MISMO `codigoGeneracion` del caso 3.7b.
+
+  **Criterio de éxito:** Código 200, estado Emitida, 1 envío y `codigoGeneracion` igual al de 3.7b.
+url: "{{base_url}}/api/erp/dte/transmitir"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: pm.request.body.update(pm.collectionVariables.get("erp_caida"));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test("ok = true", function () { pm.expect(j.ok).to.eql(true); });
+      pm.test("resultado = aceptado", function () { pm.expect(j.resultado).to.eql("aceptado"); });
+      pm.test("facturaEstado = Emitida", function () { pm.expect(j.facturaEstado).to.eql("Emitida"); });
+      pm.test("envios = 1", function () { pm.expect(j.envios).to.eql(1); });
+      pm.test("consultas = 0", function () { pm.expect(j.consultas).to.eql(0); });
+      pm.test("conserva el codigoGeneracion del intento fallido", function () { pm.expect(j.codigoGeneracion).to.eql(pm.collectionVariables.get("cg_erp_caida")); });
+    language: text/javascript
+order: 10000

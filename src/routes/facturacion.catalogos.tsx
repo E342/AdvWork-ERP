@@ -46,7 +46,6 @@ function Catalogos() {
   return (
     <>
       <PageHeader
-        hu={["HU-11"]}
         titulo="Catálogos tributarios"
         descripcion="Crea, edita y elimina catálogos de impuestos con porcentajes, series y folios. Los cambios quedan registrados para auditoría y solo son aplicables a roles autorizados."
       />

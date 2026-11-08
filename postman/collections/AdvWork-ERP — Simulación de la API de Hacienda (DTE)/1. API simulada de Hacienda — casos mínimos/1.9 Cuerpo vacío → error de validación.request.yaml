@@ -1,0 +1,29 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el error ante una solicitud sin datos para validar.
+
+  **Datos de entrada:** Cuerpo vacío, con token válido.
+
+  **Resultado esperado:** HTTP 400, `estado: RECHAZADO`, `codigoMsg: 097` (NO SE HA PROPORCIONADO DATOS PARA VALIDAR).
+
+  **Criterio de éxito:** Código 400 y código de mensaje 097.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 400", function () { pm.response.to.have.status(400); });
+      const j = pm.response.json();
+      pm.test("estado = RECHAZADO", function () { pm.expect(j.estado).to.eql("RECHAZADO"); });
+      pm.test("codigoMsg = 097", function () { pm.expect(j.codigoMsg).to.eql("097"); });
+      pm.test("clasificaMsg = 98", function () { pm.expect(j.clasificaMsg).to.eql("98"); });
+    language: text/javascript
+order: 9000

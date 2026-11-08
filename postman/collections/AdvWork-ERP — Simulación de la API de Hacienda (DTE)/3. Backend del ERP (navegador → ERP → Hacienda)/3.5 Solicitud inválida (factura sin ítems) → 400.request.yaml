@@ -1,0 +1,36 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el error de validación del ERP ante una solicitud que incumple el formato (sin ítems).
+
+  **Datos de entrada:** Factura con `items: []`.
+
+  **Resultado esperado:** HTTP 400, `error: solicitud_invalida` y una lista de `detalles`.
+
+  **Criterio de éxito:** Código 400, `error` igual a `solicitud_invalida` y al menos un detalle.
+url: "{{base_url}}/api/erp/dte/transmitir"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const cuerpo = H.facturaErp(pm, {});
+      cuerpo.factura.items = [];
+      pm.request.body.update(JSON.stringify(cuerpo));
+      pm.collectionVariables.set("erp_sin_items", JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 400", function () { pm.response.to.have.status(400); });
+      const j = pm.response.json();
+      pm.test("ok = false", function () { pm.expect(j.ok).to.eql(false); });
+      pm.test("error = solicitud_invalida", function () { pm.expect(j.error).to.eql("solicitud_invalida"); });
+      pm.test("incluye detalles de validación", function () { pm.expect(j.detalles).to.be.an('array').that.is.not.empty; });
+    language: text/javascript
+order: 5000

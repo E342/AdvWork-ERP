@@ -1,0 +1,38 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el rechazo de un DTE cuyos totales no cuadran con sus ítems.
+
+  **Datos de entrada:** DTE válido con `resumen.totalPagar` alterado a 276.00 (los ítems suman 226.00), firmado y enviado.
+
+  **Resultado esperado:** HTTP 400, `estado: RECHAZADO`, `codigoMsg: 020` (CALCULO INCORRECTO), `clasificaMsg: 16` (resumen).
+
+  **Criterio de éxito:** Código 400, código 020, clasificación 16 y el campo `resumen.totalPagar` nombrado en el mensaje.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const dte = H.dteValido(pm);
+      dte.resumen.totalPagar = 276; // los ítems suman 226
+      const cuerpo = H.peticion(pm, dte, undefined);
+      pm.request.body.update(JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 400", function () { pm.response.to.have.status(400); });
+      const j = pm.response.json();
+      pm.test("estado = RECHAZADO", function () { pm.expect(j.estado).to.eql("RECHAZADO"); });
+      pm.test("codigoMsg = 020", function () { pm.expect(j.codigoMsg).to.eql("020"); });
+      pm.test("clasificaMsg = 16", function () { pm.expect(j.clasificaMsg).to.eql("16"); });
+      pm.test("el mensaje menciona \"totalPagar\"", function () { pm.expect(JSON.stringify(j)).to.include("totalPagar"); });
+    language: text/javascript
+order: 5000

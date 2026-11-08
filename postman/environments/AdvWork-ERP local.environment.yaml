@@ -1,0 +1,12 @@
+name: AdvWork-ERP local
+values:
+  - key: base_url
+    value: 'http://127.0.0.1:8080'
+  - key: hacienda_user
+    value: SIM-FACTURADOR-01
+  - key: hacienda_pwd
+    value: SIM-NO-REAL-Pwd#2026
+  - key: firma_secret
+    value: dev-only-firma-secret-NOT-REAL
+  - key: nit_emisor
+    value: '06140000000001'

@@ -1,0 +1,33 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el comportamiento cuando el servicio tarda más que el umbral de espera (5 s).
+
+  **Datos de entrada:** DTE válido enviado con la simulación en modo `timeout`.
+
+  **Resultado esperado:** Tras ≈6 s responde HTTP 504 (`Gateway Timeout`); el documento NO se procesa.
+
+  **Criterio de éxito:** Código 504 y tiempo de respuesta de al menos 5.5 s (mayor que el umbral de 5 s).
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const dte = H.dteValido(pm);
+      const cuerpo = H.peticion(pm, dte, undefined);
+      pm.request.body.update(JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 504", function () { pm.response.to.have.status(504); });
+      pm.test("tardó más que el umbral de 5 s", function () { pm.expect(pm.response.responseTime).to.be.above(5500); });
+    language: text/javascript
+order: 21000

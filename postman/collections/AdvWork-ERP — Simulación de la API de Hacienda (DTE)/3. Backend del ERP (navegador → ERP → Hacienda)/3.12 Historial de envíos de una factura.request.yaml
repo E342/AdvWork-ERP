@@ -1,0 +1,25 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el registro y la consulta del historial de envíos.
+
+  **Datos de entrada:** GET con `facturaId` de la factura del caso 3.1.
+
+  **Resultado esperado:** HTTP 200 con una transmisión: la del caso 3.1, resultado `aceptado`.
+
+  **Criterio de éxito:** Código 200, `total` 1, el `id` de la transmisión coincide con el de 3.1.
+url: "{{base_url}}/api/erp/dte/transmisiones?facturaId={{fac_id_valida}}"
+method: GET
+queryParams:
+  facturaId: "{{fac_id_valida}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test("una sola transmisión", function () { pm.expect(j.total).to.eql(1); });
+      pm.test("es la transmisión del caso 3.1", function () { pm.expect(j.transmisiones[0].id).to.eql(pm.collectionVariables.get("trx_id_valida")); });
+      pm.test("resultado = aceptado", function () { pm.expect(j.transmisiones[0].resultado).to.eql("aceptado"); });
+    language: text/javascript
+order: 21000

@@ -49,7 +49,6 @@ function Devoluciones() {
   return (
     <>
       <PageHeader
-        hu={["HU-03"]}
         titulo="Devoluciones de productos"
         descripcion="Selecciona una venta existente y devuelve uno o varios productos. El inventario se actualiza al confirmar y queda un registro asociado a la venta original."
       />

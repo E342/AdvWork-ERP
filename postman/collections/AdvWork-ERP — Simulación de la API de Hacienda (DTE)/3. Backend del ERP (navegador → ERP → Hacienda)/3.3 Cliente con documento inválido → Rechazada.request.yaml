@@ -1,0 +1,40 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el rechazo de Hacienda reflejado en el ERP, sin reintentos (un rechazo no se reintenta).
+
+  **Datos de entrada:** Factura cuyo cliente tiene el documento `1234` (menos de 8 dígitos).
+
+  **Resultado esperado:** HTTP 422, `ok: false`, `resultado: rechazado`, `facturaEstado: Rechazada`, `codigoMsg: 003`, `clasificaMsg: 13` (receptor), 1 envío y 0 consultas.
+
+  **Criterio de éxito:** Código 422; resultado, estado, código y clasificación como se indica; sin reintentos (1 envío).
+url: "{{base_url}}/api/erp/dte/transmitir"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const cuerpo = H.facturaErp(pm, { documento: "1234" });
+      pm.request.body.update(JSON.stringify(cuerpo));
+      pm.collectionVariables.set("erp_rechazo", JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 422", function () { pm.response.to.have.status(422); });
+      const j = pm.response.json();
+      pm.test("ok = false", function () { pm.expect(j.ok).to.eql(false); });
+      pm.test("resultado = rechazado", function () { pm.expect(j.resultado).to.eql("rechazado"); });
+      pm.test("facturaEstado = Rechazada", function () { pm.expect(j.facturaEstado).to.eql("Rechazada"); });
+      pm.test("envios = 1", function () { pm.expect(j.envios).to.eql(1); });
+      pm.test("consultas = 0", function () { pm.expect(j.consultas).to.eql(0); });
+      pm.test("codigoMsg = 003", function () { pm.expect(j.codigoMsg).to.eql("003"); });
+      pm.test("clasificaMsg = 13", function () { pm.expect(j.clasificaMsg).to.eql("13"); });
+      pm.collectionVariables.set("cg_erp_rechazo", j.codigoGeneracion);
+    language: text/javascript
+order: 3000

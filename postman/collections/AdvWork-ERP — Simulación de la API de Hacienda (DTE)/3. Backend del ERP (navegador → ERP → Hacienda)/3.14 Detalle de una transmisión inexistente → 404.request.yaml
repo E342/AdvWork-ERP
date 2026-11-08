@@ -1,0 +1,18 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar la respuesta ante un identificador de transmisión que no existe.
+
+  **Datos de entrada:** GET de `TRX-9999`.
+
+  **Resultado esperado:** HTTP 404.
+
+  **Criterio de éxito:** Código 404.
+url: "{{base_url}}/api/erp/dte/transmisiones/TRX-9999"
+method: GET
+scripts:
+  - type: afterResponse
+    code: pm.test("HTTP 404", function () { pm.response.to.have.status(404); });
+    language: text/javascript
+order: 23000

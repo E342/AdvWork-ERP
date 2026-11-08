@@ -1,0 +1,38 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el rechazo de un DTE al que le falta un campo obligatorio del esquema oficial.
+
+  **Datos de entrada:** DTE válido al que se le elimina `emisor.nit`, firmado y enviado.
+
+  **Resultado esperado:** HTTP 400, `estado: RECHAZADO`, `codigoMsg: 005` (DEBE PROPORCIONAR UN VALOR), `clasificaMsg: 12` (datos del emisor), mensaje con `[emisor.nit]`.
+
+  **Criterio de éxito:** Código 400, código 005, clasificación 12 y el campo faltante nombrado en el mensaje.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const dte = H.dteValido(pm);
+      delete dte.emisor.nit;
+      const cuerpo = H.peticion(pm, dte, undefined);
+      pm.request.body.update(JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 400", function () { pm.response.to.have.status(400); });
+      const j = pm.response.json();
+      pm.test("estado = RECHAZADO", function () { pm.expect(j.estado).to.eql("RECHAZADO"); });
+      pm.test("codigoMsg = 005", function () { pm.expect(j.codigoMsg).to.eql("005"); });
+      pm.test("clasificaMsg = 12", function () { pm.expect(j.clasificaMsg).to.eql("12"); });
+      pm.test("el mensaje menciona \"[emisor.nit]\"", function () { pm.expect(JSON.stringify(j)).to.include("[emisor.nit]"); });
+    language: text/javascript
+order: 4000

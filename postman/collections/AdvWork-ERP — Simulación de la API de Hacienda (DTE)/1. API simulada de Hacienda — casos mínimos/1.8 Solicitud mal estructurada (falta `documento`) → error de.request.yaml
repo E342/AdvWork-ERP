@@ -1,0 +1,38 @@
+$kind: http-request
+name: 1.8 Solicitud mal estructurada (falta `documento`) → error de validación
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el error de validación cuando la petición no trae el campo obligatorio `documento`.
+
+  **Datos de entrada:** Petición con `ambiente`, `idEnvio`, `version`, `tipoDte` y `codigoGeneracion`, pero SIN `documento`.
+
+  **Resultado esperado:** HTTP 400, `estado: RECHAZADO`, `codigoMsg: 096` (DOCUMENTO NO CUMPLE ESQUEMA JSON), `clasificaMsg: 98`; el detalle nombra `documento`.
+
+  **Criterio de éxito:** Código 400, código 096 y `documento` mencionado en las observaciones.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const dte = H.dteValido(pm);
+      const cuerpo = H.peticion(pm, dte, { documento: undefined });
+      pm.request.body.update(JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 400", function () { pm.response.to.have.status(400); });
+      const j = pm.response.json();
+      pm.test("estado = RECHAZADO", function () { pm.expect(j.estado).to.eql("RECHAZADO"); });
+      pm.test("codigoMsg = 096", function () { pm.expect(j.codigoMsg).to.eql("096"); });
+      pm.test("clasificaMsg = 98", function () { pm.expect(j.clasificaMsg).to.eql("98"); });
+      pm.test("el mensaje menciona \"documento\"", function () { pm.expect(JSON.stringify(j)).to.include("documento"); });
+    language: text/javascript
+order: 8000

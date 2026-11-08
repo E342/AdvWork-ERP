@@ -1,0 +1,31 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Comprobar que, tras recuperarla por consulta, volver a emitir la factura no la envía otra vez.
+
+  **Datos de entrada:** El mismo cuerpo exacto del caso 3.8b.
+
+  **Resultado esperado:** HTTP 200, `yaEmitida: true` y 0 envíos.
+
+  **Criterio de éxito:** Código 200, `yaEmitida` verdadero y `envios` 0.
+url: "{{base_url}}/api/erp/dte/transmitir"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: pm.request.body.update(pm.collectionVariables.get("erp_tardia"));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test("ok = true", function () { pm.expect(j.ok).to.eql(true); });
+      pm.test("envios = 0", function () { pm.expect(j.envios).to.eql(0); });
+      pm.test("yaEmitida = true", function () { pm.expect(j.yaEmitida).to.eql(true); });
+    language: text/javascript
+order: 14000

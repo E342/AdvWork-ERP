@@ -4,29 +4,15 @@ import { cn } from "@/lib/utils";
 export function PageHeader({
   titulo,
   descripcion,
-  hu,
   acciones,
 }: {
   titulo: string;
   descripcion: string;
-  hu?: string[];
   acciones?: ReactNode;
 }) {
   return (
     <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
       <div className="max-w-2xl">
-        {hu?.length ? (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {hu.map((h) => (
-              <span
-                key={h}
-                className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[11px] font-semibold text-secondary-foreground"
-              >
-                {h}
-              </span>
-            ))}
-          </div>
-        ) : null}
         <h1 className="text-2xl font-bold text-foreground">{titulo}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{descripcion}</p>
       </div>

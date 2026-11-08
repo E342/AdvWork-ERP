@@ -1,0 +1,42 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar que un DTE de Factura válido y firmado es recibido, sellado y aceptado.
+
+  **Datos de entrada:** POST con una petición cuyo `documento` es el DTE (esquema oficial fe-f-v2, total $226.00, ambiente `00`) firmado con JWS simulado. `codigoGeneracion` UUID v4 nuevo.
+
+  **Resultado esperado:** HTTP 200, `estado: PROCESADO`, `codigoMsg: 001` (RECIBIDO), `selloRecibido` de 40 caracteres y fecha de procesamiento.
+
+  **Criterio de éxito:** Código 200; `estado`, `codigoMsg` y `clasificaMsg` (10) como se indica; sello alfanumérico de 40 caracteres; fecha `dd/MM/yyyy HH:mm:ss`; cabecera `X-AdvWork-Simulacion: true`.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const dte = H.dteValido(pm);
+      const cuerpo = H.peticion(pm, dte, undefined);
+      pm.request.body.update(JSON.stringify(cuerpo));
+      pm.collectionVariables.set("peticion_valida", JSON.stringify(cuerpo));
+      pm.collectionVariables.set("cg_valido", cuerpo.codigoGeneracion);
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test("estado = PROCESADO", function () { pm.expect(j.estado).to.eql("PROCESADO"); });
+      pm.test("codigoMsg = 001", function () { pm.expect(j.codigoMsg).to.eql("001"); });
+      pm.test("clasificaMsg = 10", function () { pm.expect(j.clasificaMsg).to.eql("10"); });
+      pm.test("selloRecibido: 40 caracteres alfanuméricos", function () { pm.expect(j.selloRecibido).to.match(/^[A-Z0-9]{40}$/); });
+      pm.test("fhProcesamiento con formato dd/MM/yyyy HH:mm:ss", function () { pm.expect(j.fhProcesamiento).to.match(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/); });
+      pm.test("la respuesta se identifica como simulada", function () { pm.response.to.have.header("X-AdvWork-Simulacion", "true"); });
+      pm.collectionVariables.set("sello_valido", j.selloRecibido);
+    language: text/javascript
+order: 1000

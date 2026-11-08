@@ -1,0 +1,21 @@
+$kind: http-request
+name: "1.13a Escenario: indisponible"
+description: |-
+  **Tipo:** preparación
+
+  Pone la simulación en modo `indisponible`. Simula que el servicio de Hacienda no está disponible.
+url: "{{base_url}}/api/hacienda-sim/control/escenario"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: '{"modo":"indisponible"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      pm.test("modo = indisponible", function () { pm.expect(pm.response.json().modo).to.eql("indisponible"); });
+    language: text/javascript
+order: 13000

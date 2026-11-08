@@ -1,0 +1,38 @@
+$kind: http-request
+name: 1.11 Ambiente de producción ("01") → rechazado
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Comprobar que la simulación NUNCA acepta el ambiente de producción, para que no pueda confundirse con el servicio real.
+
+  **Datos de entrada:** Petición con `ambiente: 01`.
+
+  **Resultado esperado:** HTTP 400, `estado: RECHAZADO`, `codigoMsg: 007` (VALOR NO ES PERMITIDO), `clasificaMsg: 19`.
+
+  **Criterio de éxito:** Código 400 y código de mensaje 007 mencionando `[ambiente]`.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const dte = H.dteValido(pm);
+      const cuerpo = H.peticion(pm, dte, { ambiente: "01" });
+      pm.request.body.update(JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 400", function () { pm.response.to.have.status(400); });
+      const j = pm.response.json();
+      pm.test("estado = RECHAZADO", function () { pm.expect(j.estado).to.eql("RECHAZADO"); });
+      pm.test("codigoMsg = 007", function () { pm.expect(j.codigoMsg).to.eql("007"); });
+      pm.test("clasificaMsg = 19", function () { pm.expect(j.clasificaMsg).to.eql("19"); });
+      pm.test("el mensaje menciona \"[ambiente]\"", function () { pm.expect(JSON.stringify(j)).to.include("[ambiente]"); });
+    language: text/javascript
+order: 11000

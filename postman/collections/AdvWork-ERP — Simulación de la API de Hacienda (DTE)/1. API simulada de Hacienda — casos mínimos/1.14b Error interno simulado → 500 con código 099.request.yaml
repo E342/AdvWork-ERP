@@ -1,0 +1,36 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar la respuesta ante un error interno del servicio.
+
+  **Datos de entrada:** DTE válido enviado con la simulación en modo `error_interno`.
+
+  **Resultado esperado:** HTTP 500, `codigoMsg: 099` (ERROR NO CATALOGADO), `clasificaMsg: 99`; el documento NO se procesa.
+
+  **Criterio de éxito:** Código 500, código 099 y clasificación 99.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const dte = H.dteValido(pm);
+      const cuerpo = H.peticion(pm, dte, undefined);
+      pm.request.body.update(JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 500", function () { pm.response.to.have.status(500); });
+      const j = pm.response.json();
+      pm.test("estado = RECHAZADO", function () { pm.expect(j.estado).to.eql("RECHAZADO"); });
+      pm.test("codigoMsg = 099", function () { pm.expect(j.codigoMsg).to.eql("099"); });
+      pm.test("clasificaMsg = 99", function () { pm.expect(j.clasificaMsg).to.eql("99"); });
+    language: text/javascript
+order: 18000

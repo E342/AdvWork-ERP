@@ -1,0 +1,28 @@
+$kind: http-request
+name: "1.13c Servicio indisponible: consultar estado → 503"
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar que la consulta de estado también falla con 503 mientras el servicio está caído.
+
+  **Datos de entrada:** Consulta del `codigoGeneracion` del caso 1.1 con la simulación en modo `indisponible`.
+
+  **Resultado esperado:** HTTP 503.
+
+  **Criterio de éxito:** Código 503.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepcion/consultadte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: 'pm.request.body.update(JSON.stringify({ nitEmisor: pm.environment.get("nit_emisor"), tdte: "01", codigoGeneracion: pm.collectionVariables.get("cg_valido") }));'
+    language: text/javascript
+  - type: afterResponse
+    code: pm.test("HTTP 503", function () { pm.response.to.have.status(503); });
+    language: text/javascript
+order: 15000

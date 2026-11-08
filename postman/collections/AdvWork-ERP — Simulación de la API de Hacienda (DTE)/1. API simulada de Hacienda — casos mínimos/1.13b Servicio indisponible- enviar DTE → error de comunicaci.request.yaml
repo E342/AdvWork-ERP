@@ -1,0 +1,36 @@
+$kind: http-request
+name: "1.13b Servicio indisponible: enviar DTE → error de comunicación (503)"
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el error de comunicación cuando el servicio no está disponible (recepción).
+
+  **Datos de entrada:** DTE válido enviado con la simulación en modo `indisponible`.
+
+  **Resultado esperado:** HTTP 503 con `status: ERROR` y `error: Service Unavailable`; el documento NO se procesa.
+
+  **Criterio de éxito:** Código 503 y cuerpo con `error` = `Service Unavailable`.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const dte = H.dteValido(pm);
+      const cuerpo = H.peticion(pm, dte, undefined);
+      pm.request.body.update(JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 503", function () { pm.response.to.have.status(503); });
+      const j = pm.response.json();
+      pm.test("error = Service Unavailable", function () { pm.expect(j.error).to.eql("Service Unavailable"); });
+      pm.test("status = ERROR", function () { pm.expect(j.status).to.eql("ERROR"); });
+    language: text/javascript
+order: 14000

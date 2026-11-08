@@ -1,0 +1,31 @@
+$kind: http-request
+name: "3.9d Consultar estado: Hacienda no tiene ese documento"
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Comprobar que la consulta de estado confirma que un documento que nunca llegó a Hacienda no existe allí.
+
+  **Datos de entrada:** `{ facturaId }` de la factura del caso 3.9b.
+
+  **Resultado esperado:** HTTP 200, `ok: true` y `encontrado: false`.
+
+  **Criterio de éxito:** Código 200 y `encontrado` falso.
+url: "{{base_url}}/api/erp/dte/consultar"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: 'pm.request.body.update(JSON.stringify({ facturaId: pm.collectionVariables.get("fac_id_sinrespuesta") }));'
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test("ok = true", function () { pm.expect(j.ok).to.eql(true); });
+      pm.test("encontrado = false", function () { pm.expect(j.encontrado).to.eql(false); });
+    language: text/javascript
+order: 18000

@@ -1,0 +1,31 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar la consulta posterior del resultado de una factura ya emitida.
+
+  **Datos de entrada:** `{ facturaId }` de la factura del caso 3.1.
+
+  **Resultado esperado:** HTTP 200, `encontrado: true`, `estado: PROCESADO` y el mismo sello del caso 3.1.
+
+  **Criterio de éxito:** Código 200, documento encontrado y `selloRecibido` igual al de 3.1.
+url: "{{base_url}}/api/erp/dte/consultar"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: 'pm.request.body.update(JSON.stringify({ facturaId: pm.collectionVariables.get("fac_id_valida") }));'
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test("encontrado = true", function () { pm.expect(j.encontrado).to.eql(true); });
+      pm.test("estado = PROCESADO", function () { pm.expect(j.estado).to.eql("PROCESADO"); });
+      pm.test("mismo sello que en 3.1", function () { pm.expect(j.selloRecibido).to.eql(pm.collectionVariables.get("sello_erp_valida")); });
+    language: text/javascript
+order: 19000

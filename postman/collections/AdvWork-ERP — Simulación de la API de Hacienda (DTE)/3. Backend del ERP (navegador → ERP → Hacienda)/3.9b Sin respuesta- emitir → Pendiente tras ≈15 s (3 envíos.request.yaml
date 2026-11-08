@@ -1,0 +1,40 @@
+$kind: http-request
+name: "3.9b Sin respuesta: emitir → Pendiente tras ≈15 s (3 envíos de 5 s)"
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el agotamiento de la política de reintentos cuando el servicio nunca responde.
+
+  **Datos de entrada:** Factura válida con la simulación en modo `timeout`.
+
+  **Resultado esperado:** HTTP 504, `ok: false`, `resultado: sin_respuesta`, `facturaEstado: Pendiente de envío`, 3 envíos y 3 consultas, tras ≈15 s.
+
+  **Criterio de éxito:** Código 504; resultado y estado como se indica; 3 envíos y 3 consultas; tiempo de respuesta de al menos 14 s.
+url: "{{base_url}}/api/erp/dte/transmitir"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const cuerpo = H.facturaErp(pm, {});
+      pm.request.body.update(JSON.stringify(cuerpo));
+      pm.collectionVariables.set("erp_sinrespuesta", JSON.stringify(cuerpo));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 504", function () { pm.response.to.have.status(504); });
+      const j = pm.response.json();
+      pm.test("ok = false", function () { pm.expect(j.ok).to.eql(false); });
+      pm.test("resultado = sin_respuesta", function () { pm.expect(j.resultado).to.eql("sin_respuesta"); });
+      pm.test("facturaEstado = Pendiente de envío", function () { pm.expect(j.facturaEstado).to.eql("Pendiente de envío"); });
+      pm.test("envios = 3", function () { pm.expect(j.envios).to.eql(3); });
+      pm.test("consultas = 3", function () { pm.expect(j.consultas).to.eql(3); });
+      pm.test("esperó 3 umbrales de 5 s", function () { pm.expect(pm.response.responseTime).to.be.above(14000); });
+      pm.collectionVariables.set("fac_id_sinrespuesta", JSON.parse(pm.collectionVariables.get("erp_sinrespuesta")).factura.id);
+    language: text/javascript
+order: 16000

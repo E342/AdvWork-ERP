@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import {
-  BarChart3,
+
   Boxes,
   FileSpreadsheet,
   FileText,
@@ -45,7 +45,6 @@ const grupos = [
     titulo: "Administración",
     items: [
       { to: "/admin/usuarios", label: "Usuarios y permisos", icon: UsersRound },
-      { to: "/requerimientos", label: "Trazabilidad ERS", icon: BarChart3 },
     ],
   },
   {

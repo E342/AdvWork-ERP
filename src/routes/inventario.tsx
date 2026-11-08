@@ -56,7 +56,6 @@ function Inventario() {
   return (
     <>
       <PageHeader
-        hu={["HU-12", "HU-13", "HU-14", "HU-15", "HU-16"]}
         titulo="Control de inventarios"
         descripcion="Existencias por almacén con puntos mínimos y máximos, entradas por compra o producción, ajustes manuales con motivo obligatorio y kardex auditable."
         acciones={

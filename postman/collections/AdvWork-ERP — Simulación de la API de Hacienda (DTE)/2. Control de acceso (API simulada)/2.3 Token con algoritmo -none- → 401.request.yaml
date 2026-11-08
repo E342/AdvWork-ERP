@@ -1,0 +1,34 @@
+$kind: http-request
+name: 2.3 Token con algoritmo "none" → 401
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Comprobar que no se acepta un token sin firma (ataque clásico de algoritmo `none`).
+
+  **Datos de entrada:** Token cuya cabecera declara `alg: none` y sin firma.
+
+  **Resultado esperado:** HTTP 401, mensaje `Token no valido`.
+
+  **Criterio de éxito:** Código 401 y el mensaje indicado.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const cab = H.b64url(CryptoJS.enc.Utf8.parse(JSON.stringify({ alg: "none", typ: "JWT" })));
+      const car = H.b64url(CryptoJS.enc.Utf8.parse(JSON.stringify({ sub: "x", exp: 9999999999 })));
+      pm.request.headers.upsert({ key: "Authorization", value: "Bearer " + cab + "." + car + "." });
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 401", function () { pm.response.to.have.status(401); });
+      const j = pm.response.json();
+      pm.test("mensaje: Token no valido", function () { pm.expect(j.message).to.eql("Token no valido"); });
+    language: text/javascript
+order: 3000

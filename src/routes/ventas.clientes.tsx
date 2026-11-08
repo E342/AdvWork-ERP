@@ -57,7 +57,6 @@ function Clientes() {
   return (
     <>
       <PageHeader
-        hu={["HU-04"]}
         titulo="Clientes e historial de ventas"
         descripcion="Busca clientes por nombre o identificador y consulta sus compras previas con importes, estado de factura y detalle completo."
       />

@@ -21,6 +21,8 @@ import { Route as VentasCotizacionesRouteImport } from './routes/ventas.cotizaci
 import { Route as VentasDevolucionesRouteImport } from './routes/ventas.devoluciones'
 import { Route as VentasPedidosRouteImport } from './routes/ventas.pedidos'
 import { Route as ApiHaciendaSimAuthRouteImport } from './routes/api.hacienda-sim.auth'
+import { Route as ApiErpCorreoDteRouteImport } from './routes/api.erp.correo.dte'
+import { Route as ApiErpCorreoPedidoRouteImport } from './routes/api.erp.correo.pedido'
 import { Route as ApiErpDteConsultarRouteImport } from './routes/api.erp.dte.consultar'
 import { Route as ApiErpDteTransmitirRouteImport } from './routes/api.erp.dte.transmitir'
 import { Route as ApiHaciendaSimControlEscenarioRouteImport } from './routes/api.hacienda-sim.control.escenario'
@@ -89,6 +91,16 @@ const ApiHaciendaSimAuthRoute = ApiHaciendaSimAuthRouteImport.update({
   path: '/api/hacienda-sim/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiErpCorreoDteRoute = ApiErpCorreoDteRouteImport.update({
+  id: '/api/erp/correo/dte',
+  path: '/api/erp/correo/dte',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiErpCorreoPedidoRoute = ApiErpCorreoPedidoRouteImport.update({
+  id: '/api/erp/correo/pedido',
+  path: '/api/erp/correo/pedido',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiErpDteConsultarRoute = ApiErpDteConsultarRouteImport.update({
   id: '/api/erp/dte/consultar',
   path: '/api/erp/dte/consultar',
@@ -143,6 +155,8 @@ export interface FileRoutesByFullPath {
   '/ventas/pedidos': typeof VentasPedidosRoute
   '/facturacion/': typeof FacturacionIndexRoute
   '/api/hacienda-sim/auth': typeof ApiHaciendaSimAuthRoute
+  '/api/erp/correo/dte': typeof ApiErpCorreoDteRoute
+  '/api/erp/correo/pedido': typeof ApiErpCorreoPedidoRoute
   '/api/erp/dte/consultar': typeof ApiErpDteConsultarRoute
   '/api/erp/dte/transmitir': typeof ApiErpDteTransmitirRoute
   '/api/hacienda-sim/control/escenario': typeof ApiHaciendaSimControlEscenarioRoute
@@ -164,6 +178,8 @@ export interface FileRoutesByTo {
   '/ventas/pedidos': typeof VentasPedidosRoute
   '/facturacion': typeof FacturacionIndexRoute
   '/api/hacienda-sim/auth': typeof ApiHaciendaSimAuthRoute
+  '/api/erp/correo/dte': typeof ApiErpCorreoDteRoute
+  '/api/erp/correo/pedido': typeof ApiErpCorreoPedidoRoute
   '/api/erp/dte/consultar': typeof ApiErpDteConsultarRoute
   '/api/erp/dte/transmitir': typeof ApiErpDteTransmitirRoute
   '/api/hacienda-sim/control/escenario': typeof ApiHaciendaSimControlEscenarioRoute
@@ -186,6 +202,8 @@ export interface FileRoutesById {
   '/ventas/pedidos': typeof VentasPedidosRoute
   '/facturacion/': typeof FacturacionIndexRoute
   '/api/hacienda-sim/auth': typeof ApiHaciendaSimAuthRoute
+  '/api/erp/correo/dte': typeof ApiErpCorreoDteRoute
+  '/api/erp/correo/pedido': typeof ApiErpCorreoPedidoRoute
   '/api/erp/dte/consultar': typeof ApiErpDteConsultarRoute
   '/api/erp/dte/transmitir': typeof ApiErpDteTransmitirRoute
   '/api/hacienda-sim/control/escenario': typeof ApiHaciendaSimControlEscenarioRoute
@@ -209,6 +227,8 @@ export interface FileRouteTypes {
     | '/ventas/pedidos'
     | '/facturacion/'
     | '/api/hacienda-sim/auth'
+    | '/api/erp/correo/dte'
+    | '/api/erp/correo/pedido'
     | '/api/erp/dte/consultar'
     | '/api/erp/dte/transmitir'
     | '/api/hacienda-sim/control/escenario'
@@ -230,6 +250,8 @@ export interface FileRouteTypes {
     | '/ventas/pedidos'
     | '/facturacion'
     | '/api/hacienda-sim/auth'
+    | '/api/erp/correo/dte'
+    | '/api/erp/correo/pedido'
     | '/api/erp/dte/consultar'
     | '/api/erp/dte/transmitir'
     | '/api/hacienda-sim/control/escenario'
@@ -251,6 +273,8 @@ export interface FileRouteTypes {
     | '/ventas/pedidos'
     | '/facturacion/'
     | '/api/hacienda-sim/auth'
+    | '/api/erp/correo/dte'
+    | '/api/erp/correo/pedido'
     | '/api/erp/dte/consultar'
     | '/api/erp/dte/transmitir'
     | '/api/hacienda-sim/control/escenario'
@@ -273,6 +297,8 @@ export interface RootRouteChildren {
   VentasPedidosRoute: typeof VentasPedidosRoute
   FacturacionIndexRoute: typeof FacturacionIndexRoute
   ApiHaciendaSimAuthRoute: typeof ApiHaciendaSimAuthRoute
+  ApiErpCorreoDteRoute: typeof ApiErpCorreoDteRoute
+  ApiErpCorreoPedidoRoute: typeof ApiErpCorreoPedidoRoute
   ApiErpDteConsultarRoute: typeof ApiErpDteConsultarRoute
   ApiErpDteTransmitirRoute: typeof ApiErpDteTransmitirRoute
   ApiHaciendaSimControlEscenarioRoute: typeof ApiHaciendaSimControlEscenarioRoute
@@ -368,6 +394,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHaciendaSimAuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/erp/correo/dte': {
+      id: '/api/erp/correo/dte'
+      path: '/api/erp/correo/dte'
+      fullPath: '/api/erp/correo/dte'
+      preLoaderRoute: typeof ApiErpCorreoDteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/erp/correo/pedido': {
+      id: '/api/erp/correo/pedido'
+      path: '/api/erp/correo/pedido'
+      fullPath: '/api/erp/correo/pedido'
+      preLoaderRoute: typeof ApiErpCorreoPedidoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/erp/dte/consultar': {
       id: '/api/erp/dte/consultar'
       path: '/api/erp/dte/consultar'
@@ -433,6 +473,8 @@ const rootRouteChildren: RootRouteChildren = {
   VentasPedidosRoute: VentasPedidosRoute,
   FacturacionIndexRoute: FacturacionIndexRoute,
   ApiHaciendaSimAuthRoute: ApiHaciendaSimAuthRoute,
+  ApiErpCorreoDteRoute: ApiErpCorreoDteRoute,
+  ApiErpCorreoPedidoRoute: ApiErpCorreoPedidoRoute,
   ApiErpDteConsultarRoute: ApiErpDteConsultarRoute,
   ApiErpDteTransmitirRoute: ApiErpDteTransmitirRoute,
   ApiHaciendaSimControlEscenarioRoute: ApiHaciendaSimControlEscenarioRoute,

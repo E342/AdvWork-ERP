@@ -1,0 +1,30 @@
+$kind: http-request
+name: 1.7 Solicitud mal estructurada (JSON mal formado) → error de validación
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el error de validación ante un cuerpo que no es JSON válido.
+
+  **Datos de entrada:** Cuerpo `{esto no es json`, con token válido.
+
+  **Resultado esperado:** HTTP 400, `estado: RECHAZADO`, `codigoMsg: 098` (DATOS NO CUMPLEN ESTANDAR JSON), `clasificaMsg: 98`.
+
+  **Criterio de éxito:** Código 400 y código de mensaje 098.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{esto no es json"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 400", function () { pm.response.to.have.status(400); });
+      const j = pm.response.json();
+      pm.test("estado = RECHAZADO", function () { pm.expect(j.estado).to.eql("RECHAZADO"); });
+      pm.test("codigoMsg = 098", function () { pm.expect(j.codigoMsg).to.eql("098"); });
+      pm.test("clasificaMsg = 98", function () { pm.expect(j.clasificaMsg).to.eql("98"); });
+    language: text/javascript
+order: 7000

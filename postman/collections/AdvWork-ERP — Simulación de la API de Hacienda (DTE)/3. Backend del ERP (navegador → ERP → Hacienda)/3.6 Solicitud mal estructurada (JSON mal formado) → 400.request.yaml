@@ -1,0 +1,27 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el error de validación del ERP ante un cuerpo que no es JSON.
+
+  **Datos de entrada:** Cuerpo `{no es json`.
+
+  **Resultado esperado:** HTTP 400, `error: cuerpo_invalido`.
+
+  **Criterio de éxito:** Código 400 y `error` igual a `cuerpo_invalido`.
+url: "{{base_url}}/api/erp/dte/transmitir"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{no es json"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 400", function () { pm.response.to.have.status(400); });
+      const j = pm.response.json();
+      pm.test("ok = false", function () { pm.expect(j.ok).to.eql(false); });
+      pm.test("error = cuerpo_invalido", function () { pm.expect(j.error).to.eql("cuerpo_invalido"); });
+    language: text/javascript
+order: 6000

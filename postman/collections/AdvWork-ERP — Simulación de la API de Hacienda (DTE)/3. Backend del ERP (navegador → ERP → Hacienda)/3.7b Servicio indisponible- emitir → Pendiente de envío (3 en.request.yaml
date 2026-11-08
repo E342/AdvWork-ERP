@@ -1,0 +1,40 @@
+$kind: http-request
+name: "3.7b Servicio indisponible: emitir → Pendiente de envío (3 envíos y 3 consultas)"
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Demostrar el error de comunicación visto desde el ERP y la política oficial de reintentos (consultar estado, reenviar hasta 2 veces, dejar pendiente).
+
+  **Datos de entrada:** Factura válida emitida con la simulación en modo `indisponible`.
+
+  **Resultado esperado:** HTTP 502, `ok: false`, `resultado: servicio_no_disponible`, `facturaEstado: Pendiente de envío`, 3 envíos y 3 consultas.
+
+  **Criterio de éxito:** Código 502; resultado y estado como se indica; exactamente 3 envíos (1 + 2 reintentos) y 3 consultas.
+url: "{{base_url}}/api/erp/dte/transmitir"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const H = eval(pm.collectionVariables.get("helpers"));
+      const cuerpo = H.facturaErp(pm, {});
+      pm.request.body.update(JSON.stringify(cuerpo));
+      pm.collectionVariables.set("erp_caida", JSON.stringify(cuerpo));
+      pm.collectionVariables.set("fac_id_caida", cuerpo.factura.id);
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 502", function () { pm.response.to.have.status(502); });
+      const j = pm.response.json();
+      pm.test("ok = false", function () { pm.expect(j.ok).to.eql(false); });
+      pm.test("resultado = servicio_no_disponible", function () { pm.expect(j.resultado).to.eql("servicio_no_disponible"); });
+      pm.test("facturaEstado = Pendiente de envío", function () { pm.expect(j.facturaEstado).to.eql("Pendiente de envío"); });
+      pm.test("envios = 3", function () { pm.expect(j.envios).to.eql(3); });
+      pm.test("consultas = 3", function () { pm.expect(j.consultas).to.eql(3); });
+      pm.collectionVariables.set("cg_erp_caida", j.codigoGeneracion);
+    language: text/javascript
+order: 8000

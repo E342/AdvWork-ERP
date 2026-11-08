@@ -1,0 +1,33 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Documentar el comportamiento controlado ante un REENVÍO: el mismo documento ya aceptado no se vuelve a registrar.
+
+  **Datos de entrada:** La misma petición exacta del caso 1.1 (mismo `codigoGeneracion`).
+
+  **Resultado esperado:** HTTP 400, `estado: RECHAZADO`, `codigoMsg: 004` (YA EXISTE UN REGISTRO CON ESE VALOR), `clasificaMsg: 11`.
+
+  **Criterio de éxito:** Código 400 y código de mensaje 004; no se genera un segundo sello (ver 1.3, donde el sello original sigue siendo el mismo).
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{token}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: beforeRequest
+    code: pm.request.body.update(pm.collectionVariables.get("peticion_valida"));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 400", function () { pm.response.to.have.status(400); });
+      const j = pm.response.json();
+      pm.test("estado = RECHAZADO", function () { pm.expect(j.estado).to.eql("RECHAZADO"); });
+      pm.test("codigoMsg = 004", function () { pm.expect(j.codigoMsg).to.eql("004"); });
+      pm.test("clasificaMsg = 11", function () { pm.expect(j.clasificaMsg).to.eql("11"); });
+      pm.test("el mensaje menciona \"YA EXISTE UN REGISTRO CON ESE VALOR\"", function () { pm.expect(JSON.stringify(j)).to.include("YA EXISTE UN REGISTRO CON ESE VALOR"); });
+    language: text/javascript
+order: 2000

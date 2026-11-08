@@ -1,0 +1,29 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Verificar que la API simulada autentica con usuario y contraseña de prueba y entrega un token JWT.
+
+  **Datos de entrada:** POST form-urlencoded con `user` y `pwd` (variables del entorno; credenciales FICTICIAS).
+
+  **Resultado esperado:** HTTP 200 con `status: OK` y `body.token` = `Bearer <jwt>`.
+
+  **Criterio de éxito:** Código 200, `status` igual a `OK`, el token empieza con `Bearer ` y se guarda para las demás peticiones.
+url: "{{base_url}}/api/hacienda-sim/auth"
+method: POST
+body:
+  type: urlencoded
+  content:
+    user: "{{hacienda_user}}"
+    pwd: "{{hacienda_pwd}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 200", function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test("status = OK", function () { pm.expect(j.status).to.eql("OK"); });
+      pm.test("token con formato Bearer <jwt>", function () { pm.expect(j.body.token).to.match(/^Bearer [\w-]+\.[\w-]+\.[\w-]+$/); });
+      pm.collectionVariables.set("token", j.body.token);
+      pm.collectionVariables.set("token_vence", String(Date.now() + 30 * 60 * 1000));
+    language: text/javascript
+order: 1000

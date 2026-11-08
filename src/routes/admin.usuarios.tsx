@@ -95,7 +95,6 @@ function Usuarios() {
   return (
     <>
       <PageHeader
-        hu={["HU-17", "RNF-02"]}
         titulo="Gestión de usuarios y permisos"
         descripcion="Crea, edita y desactiva cuentas, asigna roles y visualiza la matriz de permisos por módulo. Los cambios tienen efecto inmediato."
       />

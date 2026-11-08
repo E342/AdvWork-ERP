@@ -1,0 +1,27 @@
+$kind: http-request
+description: |-
+  **Tipo:** caso de prueba
+
+  **Objetivo:** Comprobar que un token con formato JWT pero sin firma válida se rechaza.
+
+  **Datos de entrada:** `Authorization: {{bearer_token_14lb}}`.
+
+  **Resultado esperado:** HTTP 401, mensaje `Token no valido`.
+
+  **Criterio de éxito:** Código 401 y el mensaje indicado.
+url: "{{base_url}}/api/hacienda-sim/fesv/recepciondte"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "{{bearer_token_14lb}}"
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("HTTP 401", function () { pm.response.to.have.status(401); });
+      const j = pm.response.json();
+      pm.test("mensaje: Token no valido", function () { pm.expect(j.message).to.eql("Token no valido"); });
+    language: text/javascript
+order: 2000
